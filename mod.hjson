@@ -1,20 +1,20 @@
 #the mod name as displayed in-game
-displayName: "Java Mod Template"
+displayName: "Modularis"
 
 #the internal name of your mod
-name: "example-java-mod"
+name: "modularis"
 
 #your name
-author: "You"
+author: "Ion - 7274"
 
 #the fully qualified main class of the mod
-main: "example.ExampleJavaMod"
+main: "modularis.MdlMod"
 
 #the mod description as seen in the mod dialog
-description: "A Mindustry Java mod template."
+description: "Novae technologiae modulares."
 
 #the mod version
-version: 1.0
+version: 0.1
 
 #the minimum game build required to run this mod
 minGameVersion: 158
