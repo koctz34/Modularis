@@ -39,6 +39,8 @@ import mindustry.world.consumers.*;
 import mindustry.world.draw.*;
 import mindustry.world.meta.*;
 
+import modularis.type.units.*;
+
 import static mindustry.Vars.*;
 import static mindustry.type.ItemStack.*;
 import static modularis.content.MdlItems.*;
@@ -47,17 +49,29 @@ public class MdlBlocks{
     public static Block
 
     // WALLS
-    zinkWall
+    zinkWall,
+
+    // UNITS
+    modularConstructor
 
     ;
 
     public static void load(){
         // WALLS
-        zinkWall = new Wall("zink-wall"){{
-            requirements(Category.defense, with(zink, 6));
+        zinkWall = new Wall("zinc-wall"){{
+            requirements(Category.defense, with(zinc, 6));
             localizedName = "Zinc Wall";
             description = "Wall made of zinc.";
             health = 100 * 4;
+        }};
+
+        // UNITS
+        modularConstructor = new ModularConstructor("creative-constructor"){{
+            requirements(Category.units, BuildVisibility.sandboxOnly, with());
+            localizedName = "Modular Constructor";
+            description = "Creative test bench: design a modular machine and spawn it into the world.";
+            size = 3;
+            health = 560;
         }};
     }
 }

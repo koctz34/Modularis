@@ -11,13 +11,56 @@ import mindustry.graphics.*;
 /** Mod effects. Call {@link #load()} once from content init. */
 public class MdlFX{
 
-    public static Effect bloodPuddle, workerBuild;
+    public static Effect bloodPuddle, workerBuild, wheelDust, menderPulse, turboSmoke;
 
     private static boolean loaded;
 
     public static void load(){
         if(loaded) return;
         loaded = true;
+
+        //exhaust smoke puffed out by a turbo heater; e.color tints the fresh smoke
+        turboSmoke = new Effect(54f, e -> {
+            Fx.rand.setSeed(e.id);
+            Draw.color(e.color, Color.valueOf("2b2624"), e.fin());
+            Draw.alpha(0.5f * e.fout());
+            for(int i = 0; i < 3; i++){
+                float ang = Fx.rand.random(360f);
+                float dst = Fx.rand.random(1f, 6f) * e.fin();
+                float rx = e.x + Angles.trnsx(ang, dst);
+                //smoke drifts upward as it ages
+                float ry = e.y + Angles.trnsy(ang, dst) + e.fin() * 5f;
+                Fill.circle(rx, ry, (1.7f + Fx.rand.random(2.2f)) * e.fout());
+            }
+            Draw.reset();
+        });
+
+        //expanding heal ring; e.rotation carries the radius, e.color the tint
+        menderPulse = new Effect(42f, e -> {
+            Draw.color(e.color);
+            Lines.stroke(2.4f * e.fout());
+            Lines.circle(e.x, e.y, e.rotation * e.fin());
+            Draw.alpha(0.5f * e.fout());
+            Lines.stroke(1f * e.fout());
+            Lines.circle(e.x, e.y, e.rotation * e.fin() * 0.7f);
+            Draw.reset();
+        });
+        menderPulse.clip = 600f;
+
+        //kicked-up dust from a driving wheel (tank-tread style)
+        wheelDust = new Effect(34f, e -> {
+            Fx.rand.setSeed(e.id);
+            Draw.color(Color.valueOf("8a7b63"), Color.valueOf("5a4c40"), e.fin());
+            Draw.alpha(0.6f * e.fout());
+            for(int i = 0; i < 2; i++){
+                float ang = e.rotation + 180f + Fx.rand.range(45f);
+                float dst = Fx.rand.random(1f, 5f) * e.fin();
+                float rx = e.x + Angles.trnsx(ang, dst);
+                float ry = e.y + Angles.trnsy(ang, dst);
+                Fill.circle(rx, ry, (1.4f + Fx.rand.random(1.6f)) * e.fout());
+            }
+            Draw.reset();
+        }).layer(Layer.debris);
 
         workerBuild = new Effect(46f, e -> {
             Draw.z(Layer.effect);

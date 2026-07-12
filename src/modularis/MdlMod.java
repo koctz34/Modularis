@@ -3,14 +3,19 @@ package modularis;
 import arc.*;
 import arc.util.*;
 import mindustry.game.EventType.*;
+import mindustry.gen.*;
 import mindustry.mod.*;
 import mindustry.ui.dialogs.*;
 import modularis.content.*;
+import modularis.type.units.*;
 
 public class MdlMod extends Mod{
 
     public MdlMod(){
         Log.info("[stat][Modularis] [orange]Loaded constructor.");
+
+        //register the custom modular unit entity so it can be saved and networked
+        ModularUnitEntity.classID = EntityMapping.register("modularis-modular-unit", ModularUnitEntity::new);
 
         //listen for game load event
         Events.on(ClientLoadEvent.class, e -> {
@@ -31,6 +36,8 @@ public class MdlMod extends Mod{
         Log.info("[stat][Modularis] [orange]Loading content.");
         MdlFX.load();
         MdlItems.load();
+        MdlModules.load();
+        MdlUnits.load();
         MdlBlocks.load();
     }
 

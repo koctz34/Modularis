@@ -6,13 +6,14 @@ import mindustry.type.*;
 
 public class MdlItems {
     public static Item
-    zink;
+    zinc;
 
     public static void load(){
-        zink = new Item("zink", Color.valueOf("b0b2ba")) {{
+        zinc = new Item("zinc", Color.valueOf("63a42e")) {{
             localizedName = "Zincum";
             description = "Fundamentum futurae tuae amplificationis.";
             cost = 1;
         }};
     }
 }
+
