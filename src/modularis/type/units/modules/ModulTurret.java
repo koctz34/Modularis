@@ -17,6 +17,8 @@ public class ModulTurret extends ModuleType{
     /** Sprite name used for the turret's armour base. */
     public String baseSprite = "base1x1";
 
+    public boolean autoTarget = true;
+
     private TextureRegion baseRegion;
     private boolean bulletReady, weaponReady;
 
@@ -38,8 +40,7 @@ public class ModulTurret extends ModuleType{
         bulletReady = true;
 
         weapon.mirror = false;
-        weapon.autoTarget = true;
-        weapon.controllable = true;
+        weapon.autoTarget = autoTarget;
 
         if(weapon.bullet != null) weapon.bullet.init();
         weapon.init();
@@ -58,10 +59,10 @@ public class ModulTurret extends ModuleType{
         weapon.load();
     }
 
-    /** Firing range of this turret, or 0 if it has no weapon. */
     public float range(){
         ensureBullet();
-        return weapon == null || weapon.bullet == null ? 0f : weapon.bullet.range;
+        if(weapon == null || weapon.bullet == null || !weapon.useAttackRange) return 0f;
+        return weapon.bullet.range;
     }
 
     public WeaponMount createMount(float localX, float localY){
@@ -72,8 +73,6 @@ public class ModulTurret extends ModuleType{
         copy.x = localX;
         copy.y = localY;
         copy.mirror = false;
-        copy.controllable = true;
-        copy.autoTarget = true;
         return new WeaponMount(copy);
     }
 
@@ -109,7 +108,7 @@ public class ModulTurret extends ModuleType{
     @Override
     public void buildStats(Table table){
         if(weapon == null) return;
-        stat(table, "Reload", Strings.autoFixed(60f / Math.max(1f, weapon.reload), 1) + "/s");
+        stat(table, "Fire rate", Strings.autoFixed(60f / Math.max(1f, weapon.reload), 1) + "/s");
         if(weapon.bullet != null){
             stat(table, "Damage", Strings.autoFixed(weapon.bullet.damage, 0));
         }

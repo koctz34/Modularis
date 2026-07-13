@@ -2,12 +2,13 @@ package modularis.content;
 
 import arc.graphics.*;
 import arc.struct.*;
-import mindustry.content.Fx;
-import mindustry.content.StatusEffects;
+import mindustry.content.*;
 import mindustry.entities.bullet.*;
+import mindustry.entities.pattern.*;
 import mindustry.gen.*;
+import mindustry.graphics.*;
 import mindustry.type.*;
-
+import mindustry.type.weapons.*;
 import modularis.type.units.modules.*;
 
 public class MdlModules{
@@ -18,17 +19,17 @@ public class MdlModules{
 
     public static ModuleType
         // base / armour
-        basePanel, baseLong, baseLong2, baseBig, baseLoong, baseLoong2,
+        basePanel, baseLong, baseLong2, baseBig, baseLoong, baseLoong2, baseGigant,
         // control
-        root, rootMedium, transmission,
+        root, rootMedium, rootBig, transmission, gunbridge,
         // power
-        engine, engineMedium,
+        engine, engineMedium, engineBig,
         // movement
-        wheel, track, trackBig,
+        wheel, track, trackBig, trackGigant,
         // weapons
-        gun, discharger, cannon, artillery,
+        gun, discharger, cannon, laculum, artillery, pointDefence,
         // abilities
-        mender, pulsus, turboHeater, compressor, reactiveArmorer, c4;
+        mender, pulsus, turboHeater, compressor, reactiveArmorer, transformator, c4, shieldEmitter;
 
     public static void load(){
         if(!all.isEmpty()) return;
@@ -79,6 +80,14 @@ public class MdlModules{
             health = 450f;
         }});
 
+        baseGigant = add(new ModulBase("base4x4"){{
+            localizedName = "Gigant Armor Panel";
+            description = "A 4x4 armour plate covering more area at once.";
+            w = 4; h = 4;
+            weight = 6.8f;
+            health = 1200f;
+        }});
+
         // ---- Root (control) ----
         root = add(new ModulRoot("main1x1"){{
             localizedName = "Command Core";
@@ -93,18 +102,43 @@ public class MdlModules{
             description = "The brain of the machine. Every unit needs exactly one.";
             limit = 1;
             w = 2; h = 2;
+            weight = 2f;
             weaponSlots = 6;
             engineSlots = 4;
             abilitySlots = 2;
         }});
+        rootBig = add(new ModulRoot("main4x4"){{
+            localizedName = "Big Command Core";
+            description = "The brain of the machine. Every unit needs exactly one.";
+            limit = 1;
+            w = 4; h = 4;
+            weight = 7f;
+            weaponSlots = 24;
+            engineSlots = 10;
+            abilitySlots = 5;
+        }});
         transmission = add(new ModulRoot("transmission1x3"){{
             localizedName = "Transmission";
             description = "Increases the maximum number of engines possible.";
-            limit = 1;
+            limit = 2;
             w = 3; h = 1;
             weaponSlots = 0;
             engineSlots = 3;
             abilitySlots = 0;
+            powerUse = 2f;
+            slot = SlotType.ability;
+            slotCost = 1;
+        }});
+
+        gunbridge = add(new ModulRoot("gunbridge2x2"){{
+            localizedName = "Gun Bridge";
+            description = "Increases the maximum number of weapons possible.";
+            limit = 3;
+            w = 2; h = 2;
+            weaponSlots = 6;
+            engineSlots = 0;
+            abilitySlots = 0;
+            powerUse = 2f;
             slot = SlotType.ability;
             slotCost = 1;
         }});
@@ -124,6 +158,16 @@ public class MdlModules{
             weight = 6f;
             health = 260f;
             powerProduction = 14f;
+        }});
+
+        engineBig = add(new ModulEngine("engine4x4"){{
+            localizedName = "Big Engine";
+            description = "Produces a lot of power.";
+            slotCost = 4;
+            w = 4; h = 4;
+            weight = 18f;
+            health = 600f;
+            powerProduction = 34f;
         }});
 
         // ---- Movement ----
@@ -154,6 +198,16 @@ public class MdlModules{
             haulWeight = 19f;
             rotateSpeed = 3f;
             powerUse = 2f;
+        }});
+
+        trackGigant = add(new ModulWheel("track12x2"){{
+            localizedName = "Gigant Track";
+            description = "Heavy track. Lower speed, but can haul more weight.";
+            moveSpeed = 1.7f;
+            w = 2; h = 12;
+            haulWeight = 42f;
+            rotateSpeed = 3f;
+            powerUse = 7f;
         }});
 
         // ---- Weapons ----
@@ -234,6 +288,51 @@ public class MdlModules{
             }};
         }});
 
+        laculum = add(new ModulTurret("laculum2x2"){{
+            localizedName = "Laculum";
+            description = "Heavy rocket fire. Rockets cause corrosion.";
+            baseSprite = "base2x2";
+            weight = 7f;
+            health = 300f;
+            w = 2; h = 2;
+            powerUse = 3f;
+            slotCost = 2;
+            weapon = new Weapon("modularis-laculum2x2"){{
+                rotate = true;
+                reload = 300f;
+                inaccuracy = 4f;
+                rotateSpeed = 5f;
+                recoil = 0.5f;
+                shootCone = 12f;
+                shoot = new ShootBarrel(){{
+                    barrels = new float[]{
+                        -2, -1.25f, 0,
+                        0, 0, 0,
+                        2, -1.25f, 0
+                    };
+                    shots = 12;
+                    shotDelay = 5f;
+                }};
+                shootSound = Sounds.shootMissile;
+                bullet = new MissileBulletType(4f, 10){{
+                    width = 8f;
+                    height = 8f;
+                    lifetime = 60f;
+                    splashDamageRadius = 30f;
+                    splashDamage = 30f * 1.5f;
+                    trailLength = 3;
+                    trailWidth = 0.5f;
+                    hitEffect = Fx.blastExplosion;
+                    despawnEffect = Fx.blastExplosion;
+
+                    status = StatusEffects.corroded;
+
+                    hitColor = backColor = trailColor = Pal.heal;
+                    frontColor = Pal.heal;
+                }};
+            }};
+        }});
+
         artillery = add(new ModulTurret("artillery3x2"){{
             localizedName = "Cannon";
             description = "Has a lot of damage, but slow.";
@@ -249,7 +348,6 @@ public class MdlModules{
                 inaccuracy = 2f;
                 rotateSpeed = 0f;
                 shootCone = 5f;
-                shake = 4f;
                 ejectEffect = Fx.casing2;
                 shootSound = Sounds.explosionTitan;
                 bullet = new ArtilleryBulletType(4f, 350f){{
@@ -258,6 +356,30 @@ public class MdlModules{
                     height = 20f;
                     splashDamage = 400f;
                     splashDamageRadius = 100f;
+                }};
+            }};
+        }});
+
+        pointDefence = add(new ModulTurret("point-defence1x2"){{
+            localizedName = "Point defence";
+            description = "Provides protection against projectiles.";
+            baseSprite = "base1x2";
+            weight = 3f;
+            health = 140f;
+            w = 2; h = 1;
+            powerUse = 2f;
+            weapon = new PointDefenseWeapon("modularis-point-defence1x2"){{
+                rotate = true;
+                reload = 19f;
+                targetInterval = 0f;
+                targetSwitchInterval = 0f;
+                shootSound = Sounds.shootLaser;
+                bullet = new BulletType(){{
+                    smokeEffect = Fx.pointHit;
+                    hitEffect = Fx.pointHit;
+                    maxRange = 120f;
+                    damage = 9f;
+                    speed = 3f;
                 }};
             }};
         }});
@@ -282,7 +404,25 @@ public class MdlModules{
             damage = 45f;
             tearChance = 0.3f;
             powerUse = 4f;
+            slotCost = 2;
             pulseColor = Color.valueOf("3ce1ff");
+        }});
+
+        shieldEmitter = add(new ModulPulsar("shield-emitter3x1"){{
+            localizedName = "Shield Emitter";
+            description = "Projects a force field around the machine, absorbing incoming fire "
+                + "until it breaks.";
+            w = 1; h = 3;
+            weight = 3f;
+            health = 150f;
+            powerUse = 5f;
+            slotCost = 2;
+            hasPulseEffect = false;
+
+            shieldRadius = 60f;
+            shieldRegen = 0.4f;
+            shieldMax = 500f;
+            shieldCooldown = 60f * 6f;
         }});
 
         compressor = add(new ModuleType("compressor1x1"){{
@@ -308,6 +448,20 @@ public class MdlModules{
             healthMultiplier = 1.2f;
             weight = 1.5f;
             health = 20f;
+            powerUse = 1f;
+        }});
+
+        transformator = add(new ModuleType("transformator2x1"){{
+            localizedName = "Transformator";
+            description = "Increases the machine's power use and damage.";
+            category = ModuleCategory.ability;
+            slot = SlotType.ability;
+            slotCost = 1;
+            w = 1; h = 2;
+            powerUseMultiplier = 1.4f;
+            damageMultiplier = 1.3f;
+            weight = 1.5f;
+            health = 120f;
             powerUse = 1f;
         }});
 

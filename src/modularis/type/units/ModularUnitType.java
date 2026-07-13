@@ -1,5 +1,6 @@
 package modularis.type.units;
 
+import arc.Core;
 import arc.graphics.*;
 import arc.graphics.g2d.*;
 import arc.math.*;
@@ -347,9 +348,6 @@ public class ModularUnitType extends UnitType{
     @Override
     public void load(){
         super.load();
-        ModuleType root = MdlModules.root;
-        if(root != null && root.region() != null && root.region().found()){
-            region = fullIcon = uiIcon = root.region();
-        }
+        region = fullIcon = uiIcon = Core.atlas.find("modularis-base3x2");
     }
 }

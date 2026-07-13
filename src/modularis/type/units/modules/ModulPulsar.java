@@ -6,6 +6,7 @@ import arc.math.*;
 import arc.scene.ui.layout.*;
 import arc.util.*;
 import mindustry.entities.*;
+import mindustry.entities.abilities.*;
 import mindustry.gen.*;
 
 import modularis.content.*;
@@ -40,6 +41,19 @@ public class ModulPulsar extends ModuleType{
     /** Pulse radius, in world units. */
     public float pulseRange = 90f;
 
+    /** Shield radius in world units. 0 = no shield. */
+    public float shieldRadius = 0f;
+    /** Shield HP regenerated per tick. */
+    public float shieldRegen = 0.4f;
+    /** Maximum shield HP. */
+    public float shieldMax = 500f;
+    /** Ticks the shield stays down after being broken. */
+    public float shieldCooldown = 60f * 6f;
+    /** Number of sides on the shield polygon. */
+    public int shieldSides = 6;
+    /** Shield polygon rotation. */
+    public float shieldRotation = 0f;
+
     /** HP restored to each ALLY caught in the pulse. */
     public float healAmount = 0f;
     /** Fraction of max HP restored to each ally (0.1 = 10%). */
@@ -61,6 +75,7 @@ public class ModulPulsar extends ModuleType{
     public Color pulseColor = Color.valueOf("84f491");
     public @Nullable Sound pulseSound;
     public float pulseSoundVolume = 0.7f;
+    public boolean hasPulseEffect = true;
 
     public ModulPulsar(String name){
         super(name);
@@ -71,12 +86,24 @@ public class ModulPulsar extends ModuleType{
         powerUse = 0.7f;
     }
 
+    public boolean hasShield(){
+        return shieldRadius > 0f && shieldMax > 0f;
+    }
+
+    public @Nullable Ability createShield(){
+        if(!hasShield()) return null;
+        return new ForceFieldAbility(shieldRadius, shieldRegen, shieldMax, shieldCooldown,
+            shieldSides, shieldRotation);
+    }
+
     public void updatePulse(ModularUnitEntity unit, PulsarMount mount, float x, float y){
         mount.charge += Time.delta;
         if(mount.charge < reload) return;
         mount.charge = 0f;
 
-        MdlFX.menderPulse.at(x, y, pulseRange, pulseColor);
+        if(hasPulseEffect){
+            MdlFX.menderPulse.at(x, y, pulseRange, pulseColor);
+        }
         if(pulseSound != null) pulseSound.at(x, y, 1f, pulseSoundVolume);
 
         if(net.client()) return;
@@ -113,6 +140,12 @@ public class ModulPulsar extends ModuleType{
         if(damage > 0f) stat(table, "Damage", Strings.autoFixed(damage, 0));
         if(tearChance > 0f){
             stat(table, "Rip module", "[scarlet]" + Strings.autoFixed(tearChance * 100f, 0) + "%[]");
+        }
+        if(hasShield()){
+            stat(table, "Shield", "[cyan]" + Strings.autoFixed(shieldMax, 0) + " HP[]");
+            stat(table, "Shield radius", Strings.autoFixed(shieldRadius / 8f, 1) + " tiles");
+            stat(table, "Shield regen", Strings.autoFixed(shieldRegen * 60f, 1) + "/s");
+            stat(table, "Shield downtime", Strings.autoFixed(shieldCooldown / 60f, 1) + "s");
         }
     }
 }

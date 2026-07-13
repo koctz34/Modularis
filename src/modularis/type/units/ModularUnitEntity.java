@@ -9,6 +9,7 @@ import arc.util.io.*;
 import mindustry.ai.types.*;
 import mindustry.content.*;
 import mindustry.entities.*;
+import mindustry.entities.abilities.*;
 import mindustry.entities.units.*;
 import mindustry.gen.*;
 
@@ -74,11 +75,14 @@ public class ModularUnitEntity extends TankUnit{
     private void rebuildMounts(){
         pulsars.clear();
         mounts = new WeaponMount[0];
+        abilities = new Ability[0];
         if(design == null) return;
 
         float cell = ModularUnitType.cellWorld();
 
         Seq<WeaponMount> weaponMounts = new Seq<>();
+        Seq<Ability> abils = new Seq<>();
+
         for(PlacedModule m : design.modules){
             if(!design.isActive(m)) continue;
 
@@ -94,9 +98,20 @@ public class ModularUnitEntity extends TankUnit{
                 }
             }else if(m.type instanceof ModulPulsar p){
                 pulsars.add(new PulsarMount(m, p));
+
+                Ability shield = p.createShield();
+                if(shield != null) abils.add(shield);
             }
         }
+
         mounts = weaponMounts.toArray(WeaponMount.class);
+
+        abilities = abils.toArray(Ability.class);
+        for(Ability a : abilities){
+            if(type != null) a.init(type);
+            a.created(this);
+        }
+
         recomputeRange();
     }
 
