@@ -348,6 +348,6 @@ public class ModularUnitType extends UnitType{
     @Override
     public void load(){
         super.load();
-        region = fullIcon = uiIcon = Core.atlas.find("modularis-base3x2");
+        region = fullIcon = uiIcon = Core.atlas.find("modularis-modulare-tank-icon");
     }
 }

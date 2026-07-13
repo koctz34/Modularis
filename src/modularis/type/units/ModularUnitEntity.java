@@ -72,8 +72,24 @@ public class ModularUnitEntity extends TankUnit{
         }
     }
 
+    private void disposeMounts(){
+        if(mounts == null) return;
+        for(WeaponMount mount : mounts){
+            if(mount == null) continue;
+
+            if(mount.weapon != null && mount.weapon.continuous
+                && mount.bullet != null && mount.bullet.owner == this){
+                //let the beam wind down instead of popping out of existence
+                mount.bullet.time = mount.bullet.lifetime - 10f;
+                mount.bullet = null;
+            }
+            if(mount.sound != null) mount.sound.stop();
+        }
+    }
+
     private void rebuildMounts(){
         pulsars.clear();
+        disposeMounts();
         mounts = new WeaponMount[0];
         abilities = new Ability[0];
         if(design == null) return;

@@ -27,7 +27,7 @@ public class MdlModules{
         // movement
         wheel, track, trackBig, trackGigant,
         // weapons
-        gun, discharger, cannon, laculum, artillery, pointDefence,
+        gun, discharger, cannon, laculum, artillery, wolfRae, pointDefence,
         // abilities
         mender, pulsus, turboHeater, compressor, reactiveArmorer, transformator, c4, shieldEmitter;
 
@@ -343,10 +343,10 @@ public class MdlModules{
             powerUse = 6f;
             slotCost = 4;
             weapon = new Weapon("modularis-artillery3x2"){{
-                rotate = false;
+                rotate = true;
                 reload = 300f;
                 inaccuracy = 2f;
-                rotateSpeed = 0f;
+                rotateSpeed = 1f;
                 shootCone = 5f;
                 ejectEffect = Fx.casing2;
                 shootSound = Sounds.explosionTitan;
@@ -356,6 +356,53 @@ public class MdlModules{
                     height = 20f;
                     splashDamage = 400f;
                     splashDamageRadius = 100f;
+                }};
+            }};
+        }});
+
+        wolfRae = add(new ModulTurret("wolf-rae4x4"){{
+            localizedName = "Wolf Rae";
+            description = "A massive, deadly laser turret.";
+            baseSprite = "base4x4";
+            weight = 40f;
+            health = 800f;
+            w = 4; h = 4;
+            powerUse = 30f;
+            slotCost = 6;
+            weapon = new Weapon("modularis-wolf-rae4x4"){{
+                shake = 6f;
+
+                shoot.firstShotDelay = MdlFX.neoplasmLaserChargeSmall.lifetime - 1f;
+                parentizeEffects = true;
+
+
+                rotate = true;
+                rotateSpeed = 1f;
+                reload = 700f;
+                recoil = 1f;
+                chargeSound = Sounds.chargeVela;
+                shootSound = Sounds.beamPlasma;
+                initialShootSound = Sounds.shootBeamPlasma;
+                continuous = true;
+                cooldownTime = 300f;
+
+                bullet = new ContinuousLaserBulletType(){{
+                    damage = 50f;
+                    length = 200f;
+                    hitEffect = Fx.hitMeltdown;
+                    drawSize = 480f;
+                    lifetime = 230f;
+                    shake = 3f;
+                    despawnEffect = Fx.smokeCloud;
+                    smokeEffect = Fx.none;
+
+                    chargeEffect = MdlFX.neoplasmLaserChargeSmall;
+
+                    incendChance = 0.1f;
+                    incendSpread = 5f;
+                    incendAmount = 1;
+
+                    colors = new Color[]{Pal.neoplasm1.cpy().a(.2f), Pal.neoplasm1.cpy().a(.5f), Pal.neoplasm2.cpy().mul(1.2f), Color.white};
                 }};
             }};
         }});

@@ -1,5 +1,7 @@
 package modularis.content;
 
+import javax.sound.sampled.Line;
+
 import arc.graphics.*;
 import arc.graphics.g2d.*;
 import arc.math.*;
@@ -14,7 +16,7 @@ import modularis.type.units.modules.*;
 public class MdlFX{
 
     public static Effect bloodPuddle, workerBuild, wheelDust, menderPulse, turboSmoke,
-        moduleDebrisFly, moduleDebrisRest;
+        moduleDebrisFly, moduleDebrisRest, neoplasmLaserChargeSmall;
 
     public static final float debrisLife = 60f * 120f;
     public static final float debrisFlyTime = 55f;
@@ -35,6 +37,12 @@ public class MdlFX{
     public static void load(){
         if(loaded) return;
         loaded = true;
+
+        neoplasmLaserChargeSmall = new Effect(40f, 100f, e -> {
+            Draw.color(Pal.neoplasm1);
+            Lines.stroke(e.fin() * 2f);
+            Lines.circle(e.x, e.y, e.fout() * 50f);
+        }).followParent(true).rotWithParent(true);
 
         //phase 1: tumbling through the air, drawn above the units
         moduleDebrisFly = new Effect(debrisFlyTime, e -> {
