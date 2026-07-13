@@ -29,6 +29,8 @@ public class ModuleType{
     public float weight = 1f;
     /** Structural health this module contributes to the unit. */
     public float health = 120f;
+    /** Structural armor this module contributes to the unit. */
+    public float armor = 0f;
     /** Power produced each tick. */
     public float powerProduction = 0f;
     /** Power drained each tick while active. */
@@ -58,6 +60,14 @@ public class ModuleType{
     public float powerUseMultiplier = 1f;
     /** Scales the drivetrain's hauling capacity. */
     public float haulMultiplier = 1f;
+    /** Cargo capacity of the machine. */
+    public int cargoCapacity = 0;
+
+    /**
+     * Build speed this module grants the machine. 0 = grants none.
+     * A machine with no build module cannot build at all; several stack.
+     */
+    public float buildSpeed = 0f;
 
     /** Effect emitted every so often while the module is running. Null = none. */
     public @Nullable Effect ambientEffect;
@@ -114,10 +124,13 @@ public class ModuleType{
         stat(table, "Size", w + "x" + h);
         stat(table, "Weight", Strings.autoFixed(weight, 1));
         stat(table, "Health", Strings.autoFixed(health, 0));
+        if(armor > 0) stat(table, "Armor", Strings.autoFixed(armor, 0));
         if(powerProduction > 0) stat(table, "Power +", Strings.autoFixed(powerProduction * 60f, 1) + "/s");
         if(powerUse > 0) stat(table, "Power -", Strings.autoFixed(powerUse * 60f, 1) + "/s");
         if(limit >= 0) stat(table, "Max per machine", "" + limit);
         if(slot != SlotType.none) stat(table, "Slots needed", slotCost + " " + slot.title.toLowerCase());
+        if(cargoCapacity > 0) stat(table, "Cargo capacity", Strings.autoFixed(cargoCapacity, 0));
+        if(buildSpeed > 0) stat(table, "Build speed", "[lime]x" + Strings.autoFixed(buildSpeed, 2) + "[]");
 
         mult(table, "Health", healthMultiplier, false);
         mult(table, "Damage", damageMultiplier, false);

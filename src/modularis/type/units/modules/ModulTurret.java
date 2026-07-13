@@ -40,7 +40,10 @@ public class ModulTurret extends ModuleType{
         bulletReady = true;
 
         weapon.mirror = false;
-        weapon.autoTarget = autoTarget;
+
+        if(weapon.getClass() == Weapon.class){
+            weapon.autoTarget = autoTarget;
+        }
 
         if(weapon.bullet != null) weapon.bullet.init();
         weapon.init();
@@ -73,7 +76,8 @@ public class ModulTurret extends ModuleType{
         copy.x = localX;
         copy.y = localY;
         copy.mirror = false;
-        return new WeaponMount(copy);
+
+        return copy.mountType.get(copy);
     }
 
     public TextureRegion baseRegion(){

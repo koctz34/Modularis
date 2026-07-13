@@ -54,6 +54,9 @@ public class ModularUnitType extends UnitType{
         hitSize = 18f;
         armor = 3f;
 
+        buildSpeed = 1f;
+        drawBuildBeam = false;
+
         drawCell = false;
         drawItems = false;
         outlines = false;         //we draw our own composite outline
@@ -100,6 +103,8 @@ public class ModularUnitType extends UnitType{
 
         unit.disarmed(!stats.canShoot());
         unit.reloadMultiplier(Math.max(stats.fireRateMultiplier(), 0.05f));
+
+        unit.buildSpeedMultiplier(stats.buildSpeed);
 
         if(stats.isKamikaze() && !net.client()){
             float reach = unit.hitSize / 2f + stats.detonateRange;

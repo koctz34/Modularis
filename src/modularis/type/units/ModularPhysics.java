@@ -80,12 +80,11 @@ public class ModularPhysics{
 
             if(t.category == ModuleCategory.root) s.hasRoot = true;
 
-            //mass counts no matter what: an unbound module is still bolted on and still
-            //weighs (and still soaks up hits). It just doesn't DO anything.
             float mass = Math.max(t.weight, 0.0001f);
             comX += mcx * mass;
             comY += mcy * mass;
             massSum += mass;
+            s.armor += t.armor;
 
             //everything past here is the module's FUNCTION, which needs a slot to run in
             if(!design.isActive(pm)){
@@ -95,6 +94,8 @@ public class ModularPhysics{
 
             s.powerProd += t.powerProduction;
             s.powerUse += t.powerUse;
+            s.cargoCapacity += t.cargoCapacity;
+            s.buildSpeed += t.buildSpeed;
 
             //ANY module may bend the machine's stats - convertors and turbos are just
             //modules whose multipliers happen to be interesting. They all stack.
@@ -196,6 +197,18 @@ public class ModularPhysics{
         public float loadFactor, weightFactor, balanceFactor, balanceOffset;
         public float powerProd, powerUse, powerRatio;
         public float topRating, speedRating;
+
+        /** Summed plating. */
+        public float armor;
+        /** Summed item capacity. */
+        public int cargoCapacity;
+        /** Summed build speed. 0 = the machine cannot build at all. */
+        public float buildSpeed;
+
+        /** A machine can only build if it carries at least one build module. */
+        public boolean canBuild(){
+            return buildSpeed > 0f;
+        }
 
         //---- stat multipliers, stacked from every active module (1 = untouched) ----
         /** Applied to the machine's max health when the design is assigned. */

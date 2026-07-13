@@ -19,7 +19,7 @@ public class MdlModules{
 
     public static ModuleType
         // base / armour
-        basePanel, baseLong, baseLong2, baseBig, baseLoong, baseLoong2, baseGigant,
+        basePanel, baseLong, baseLong2, baseBig, baseLoong, baseLoong2, baseGigant, cargo,
         // control
         root, rootMedium, rootBig, transmission, gunbridge,
         // power
@@ -27,7 +27,7 @@ public class MdlModules{
         // movement
         wheel, track, trackBig, trackGigant,
         // weapons
-        gun, discharger, cannon, laculum, artillery, wolfRae, pointDefence,
+        gun, discharger, cannon, sanguis, laculum, artillery, wolfRae, pointDefence, buildTower, repairTower,
         // abilities
         mender, pulsus, turboHeater, compressor, reactiveArmorer, transformator, c4, shieldEmitter;
 
@@ -46,6 +46,7 @@ public class MdlModules{
             w = 2; h = 1;
             weight = 1.8f;
             health = 300f;
+            armor = 0.5f;
         }});
 
         baseLong2 = add(new ModulBase("base2x1"){{
@@ -54,6 +55,7 @@ public class MdlModules{
             w = 1; h = 2;
             weight = 1.8f;
             health = 300f;
+            armor = 0.5f;
         }});
 
         baseBig = add(new ModulBase("base2x2"){{
@@ -62,6 +64,7 @@ public class MdlModules{
             w = 2; h = 2;
             weight = 3.4f;
             health = 600f;
+            armor = 1f;
         }});
 
         baseLoong = add(new ModulBase("base1x3"){{
@@ -70,6 +73,7 @@ public class MdlModules{
             w = 3; h = 1;
             weight = 2.7f;
             health = 450f;
+            armor = 0.8f;
         }});
 
         baseLoong2 = add(new ModulBase("base3x1"){{
@@ -78,6 +82,7 @@ public class MdlModules{
             w = 1; h = 3;
             weight = 2.7f;
             health = 450f;
+            armor = 0.8f;
         }});
 
         baseGigant = add(new ModulBase("base4x4"){{
@@ -86,6 +91,15 @@ public class MdlModules{
             w = 4; h = 4;
             weight = 6.8f;
             health = 1200f;
+            armor = 4f;
+        }});
+
+        cargo = add(new ModuleType("cargo1x2"){{
+            localizedName = "Cargo ";
+            description = "Can store items.";
+            w = 2; h = 1;
+            cargoCapacity = 50;
+            weight = 1.4f;
         }});
 
         // ---- Root (control) ----
@@ -96,6 +110,8 @@ public class MdlModules{
             weaponSlots = 3;
             engineSlots = 2;
             abilitySlots = 1;
+            armor = 1f;
+            cargoCapacity = 10;
         }});
         rootMedium = add(new ModulRoot("main2x2"){{
             localizedName = "Medium Command Core";
@@ -106,6 +122,8 @@ public class MdlModules{
             weaponSlots = 6;
             engineSlots = 4;
             abilitySlots = 2;
+            armor = 3f;
+            cargoCapacity = 20;
         }});
         rootBig = add(new ModulRoot("main4x4"){{
             localizedName = "Big Command Core";
@@ -116,6 +134,8 @@ public class MdlModules{
             weaponSlots = 24;
             engineSlots = 10;
             abilitySlots = 5;
+            armor = 8f;
+            cargoCapacity = 40;
         }});
         transmission = add(new ModulRoot("transmission1x3"){{
             localizedName = "Transmission";
@@ -288,6 +308,37 @@ public class MdlModules{
             }};
         }});
 
+        sanguis = add(new ModulTurret("sanguis2x1"){{
+            localizedName = "Sanguis";
+            description = "Steals health from enemies to repair the vehicle.";
+            baseSprite = "base2x1";
+            weight = 3.1f;
+            health = 120f;
+            w = 1; h = 2;
+            powerUse = 2.4f;
+            slotCost = 1;
+            weapon = new Weapon("modularis-sanguis2x1"){{
+                rotate = true;
+                reload = 19f;
+                inaccuracy = 1f;
+                rotateSpeed = 8f;
+                shootCone = 2f;
+                shootSound = Sounds.shootSap;
+
+                bullet = new SapBulletType(){{
+                    sapStrength = 1f;
+                    length = 40f;
+                    damage = 18;
+                    shootEffect = Fx.shootSmall;
+                    hitColor = color = Color.valueOf("e95eb4");
+                    despawnEffect = Fx.none;
+                    width = 0.4f;
+                    lifetime = 17f;
+                    knockback = -0.65f;
+                }};
+            }};
+        }});
+
         laculum = add(new ModulTurret("laculum2x2"){{
             localizedName = "Laculum";
             description = "Heavy rocket fire. Rockets cause corrosion.";
@@ -375,7 +426,6 @@ public class MdlModules{
                 shoot.firstShotDelay = MdlFX.neoplasmLaserChargeSmall.lifetime - 1f;
                 parentizeEffects = true;
 
-
                 rotate = true;
                 rotateSpeed = 1f;
                 reload = 700f;
@@ -427,6 +477,54 @@ public class MdlModules{
                     maxRange = 120f;
                     damage = 9f;
                     speed = 3f;
+                }};
+            }};
+        }});
+
+        buildTower = add(new ModulTurret("build-tower1x2"){{
+            localizedName = "Build Tower";
+            description = "Can build blocks.";
+            baseSprite = "base1x2";
+            weight = 3f;
+            health = 140f;
+            w = 2; h = 1;
+            powerUse = 3f;
+            buildSpeed = 1f;
+            weapon = new BuildWeapon("modularis-build-tower1x2"){{
+                rotate = true;
+                rotateSpeed = 7f;
+            }};
+        }});
+
+        repairTower = add(new ModulTurret("repair-tower2x1"){{
+            localizedName = "Build Tower";
+            description = "Repair ally buildings.";
+            baseSprite = "base2x1";
+            weight = 3f;
+            health = 140f;
+            w = 1; h = 2;
+            powerUse = 2.1f;
+            weapon = new RepairBeamWeapon("modularis-repair-tower2x1"){{
+                widthSinMag = 0.11f;
+                reload = 20f;
+                rotate = false;
+                beamWidth = 0.7f;
+                shootCone = 15f;
+                mirror = false;
+                rotate = true;
+
+                repairSpeed = 3.3f;
+                fractionRepairSpeed = 0.06f;
+
+                targetUnits = false;
+                targetBuildings = true;
+                autoTarget = false;
+                controllable = true;
+                laserColor = Pal.accent;
+                healColor = Pal.accent;
+
+                bullet = new BulletType(){{
+                    maxRange = 60f;
                 }};
             }};
         }});

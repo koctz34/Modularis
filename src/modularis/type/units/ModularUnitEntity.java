@@ -39,6 +39,9 @@ public class ModularUnitEntity extends TankUnit{
 
     public float weaponRange = -1f;
 
+    /** Item capacity summed from this machine's cargo modules. */
+    public int cargoCapacity;
+
     public final Seq<PulsarMount> pulsars = new Seq<>();
 
     /** Sets the blueprint and derives dependent stats (max health, hitbox, weapon mounts). */
@@ -128,10 +131,10 @@ public class ModularUnitEntity extends TankUnit{
             a.created(this);
         }
 
-        recomputeRange();
+        recomputeDerived();
     }
 
-    private void recomputeRange(){
+    private void recomputeDerived(){
         float r = 0f;
         if(design != null){
             for(PlacedModule m : design.modules){
@@ -140,11 +143,21 @@ public class ModularUnitEntity extends TankUnit{
             }
         }
         weaponRange = r;
+
+        ModularPhysics.Stats s = design == null ? null : ModularPhysics.compute(design);
+
+        armor(s == null ? 0f : s.armor);
+        cargoCapacity = s == null ? 0 : s.cargoCapacity;
     }
 
     @Override
     public float range(){
         return weaponRange >= 0f ? weaponRange : super.range();
+    }
+
+    @Override
+    public int itemCapacity(){
+        return Math.max(cargoCapacity, 0);
     }
 
     // ---- battle damage: modules get torn off ----
