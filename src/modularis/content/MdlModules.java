@@ -2,6 +2,7 @@ package modularis.content;
 
 import arc.graphics.*;
 import arc.struct.*;
+import mindustry.content.Fx;
 import mindustry.entities.bullet.*;
 import mindustry.gen.*;
 import mindustry.type.*;
@@ -16,17 +17,17 @@ public class MdlModules{
 
     public static ModuleType
         // base / armour
-        basePanel, baseLong, baseBig,
+        basePanel, baseLong, baseLong2, baseBig, baseLoong, baseLoong2,
         // control
-        root, rootMedium,
+        root, rootMedium, transmission,
         // power
-        engine, engineMedium, fuelCell,
+        engine, engineMedium,
         // movement
         wheel, track, trackBig,
         // weapons
-        gun,
+        gun, cannon, artillery,
         // abilities
-        mender, turboHeater;
+        mender, turboHeater, compressor, reactiveArmorer, c4;
 
     public static void load(){
         if(!all.isEmpty()) return;
@@ -45,12 +46,36 @@ public class MdlModules{
             health = 300f;
         }});
 
+        baseLong2 = add(new ModulBase("base2x1"){{
+            localizedName = "Long Armor Panel";
+            description = "A 1x2 armour plate covering more area at once.";
+            w = 1; h = 2;
+            weight = 1.8f;
+            health = 300f;
+        }});
+
         baseBig = add(new ModulBase("base2x2"){{
             localizedName = "Big Armor Panel";
             description = "A 2x2 armour plate covering more area at once.";
             w = 2; h = 2;
             weight = 3.4f;
             health = 600f;
+        }});
+
+        baseLoong = add(new ModulBase("base1x3"){{
+            localizedName = "Long Armor Panel";
+            description = "A 3x1 armour plate covering more area at once.";
+            w = 3; h = 1;
+            weight = 2.7f;
+            health = 450f;
+        }});
+
+        baseLoong2 = add(new ModulBase("base3x1"){{
+            localizedName = "Long Armor Panel";
+            description = "A 1x3 armour plate covering more area at once.";
+            w = 1; h = 3;
+            weight = 2.7f;
+            health = 450f;
         }});
 
         // ---- Root (control) ----
@@ -70,6 +95,17 @@ public class MdlModules{
             weaponSlots = 6;
             engineSlots = 4;
             abilitySlots = 2;
+        }});
+        transmission = add(new ModulRoot("transmission1x3"){{
+            localizedName = "Transmission";
+            description = "Increases the maximum number of engines possible.";
+            limit = 1;
+            w = 3; h = 1;
+            weaponSlots = 0;
+            engineSlots = 3;
+            abilitySlots = 0;
+            slot = SlotType.ability;
+            slotCost = 1;
         }});
 
         // ---- Engines (power) ----
@@ -141,6 +177,61 @@ public class MdlModules{
             }};
         }});
 
+        cannon = add(new ModulTurret("cannon2x1"){{
+            localizedName = "Cannon";
+            description = "Has a lot of damage, but slow.";
+            baseSprite = "base2x1";
+            weight = 3f;
+            health = 140f;
+            w = 1; h = 2;
+            powerUse = 1.4f;
+            slotCost = 2;
+            weapon = new Weapon("modularis-cannon2x1"){{
+                rotate = true;
+                reload = 56f;
+                inaccuracy = 2f;
+                rotateSpeed = 7f;
+                shootCone = 5f;
+                ejectEffect = Fx.casing1;
+                shootSound = Sounds.shootArtillery;
+                bullet = new ArtilleryBulletType(3f, 30f){{
+                    lifetime = 65f;
+                    width = 10f;
+                    height = 12f;
+                    splashDamage = 50f;
+                    splashDamageRadius = 50f;
+                }};
+            }};
+        }});
+
+        artillery = add(new ModulTurret("artillery3x2"){{
+            localizedName = "Cannon";
+            description = "Has a lot of damage, but slow.";
+            baseSprite = "base3x2";
+            weight = 14f;
+            health = 400f;
+            w = 2; h = 3;
+            powerUse = 6f;
+            slotCost = 4;
+            weapon = new Weapon("modularis-artillery3x2"){{
+                rotate = false;
+                reload = 300f;
+                inaccuracy = 2f;
+                rotateSpeed = 0f;
+                shootCone = 5f;
+                shake = 4f;
+                ejectEffect = Fx.casing2;
+                shootSound = Sounds.explosionTitan;
+                bullet = new ArtilleryBulletType(4f, 350f){{
+                    lifetime = 150f;
+                    width = 18f;
+                    height = 20f;
+                    splashDamage = 400f;
+                    splashDamageRadius = 100f;
+                }};
+            }};
+        }});
+
         // ---- Abilities ----
         mender = add(new ModulMender("mender1x1"){{
             localizedName = "Mender";
@@ -151,15 +242,58 @@ public class MdlModules{
             powerUse = 2f;
         }});
 
-        turboHeater = add(new ModulTurbo("turboheater2x2"){{
+        compressor = add(new ModuleType("compressor1x1"){{
+            localizedName = "Compressor";
+            description = "Compresses the machine's systems: less weight, less health.";
+            category = ModuleCategory.ability;
+            slot = SlotType.ability;
+            slotCost = 1;
+            weightMultiplier = 0.8f;
+            healthMultiplier = 0.7f;
+            weight = 1.5f;
+            health = 20f;
+            powerUse = 1f;
+        }});
+
+        reactiveArmorer = add(new ModuleType("reactive-armorer1x1"){{
+            localizedName = "Reactive Armorer";
+            description = "Improves protection, but makes machine heavier.";
+            category = ModuleCategory.ability;
+            slot = SlotType.ability;
+            slotCost = 1;
+            weightMultiplier = 1.3f;
+            healthMultiplier = 1.2f;
+            weight = 1.5f;
+            health = 20f;
+            powerUse = 1f;
+        }});
+
+        c4 = add(new ModulC4("c41x1"){{
+            localizedName = "C4 Charge";
+            description = "Turns the machine into a kamikaze: it charges the nearest enemy "
+                + "and detonates. More charges, bigger blast.";
+            slotCost = 1;
+            damage = 400f;
+            radius = 48f;
+            weight = 2f;
+            health = 40f;
+        }});
+
+        turboHeater = add(new ModuleType("turboheater2x2"){{
             localizedName = "Turbo Heater";
-            description = "Overdrives the drivetrain, doubling the machine's top speed. ";
-            w = 2; h = 2;
+            description = "Overdrives the drivetrain, doubling the machine's top speed.";
+            category = ModuleCategory.ability;
+            slot = SlotType.ability;
             slotCost = 2;
-            speedBoost = 2f;
+            w = 2; h = 2;
+            speedMultiplier = 2f;
             weight = 3f;
             health = 130f;
             powerUse = 2.5f;
+
+            ambientEffect = MdlFX.turboSmoke;
+            ambientChance = 0.1f;
+            ambientColor = Color.valueOf("9a8f86");
         }});
     }
 

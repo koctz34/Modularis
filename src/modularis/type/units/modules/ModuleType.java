@@ -3,8 +3,10 @@ package modularis.type.units.modules;
 import arc.*;
 import arc.graphics.*;
 import arc.graphics.g2d.*;
+import arc.math.*;
 import arc.scene.ui.layout.*;
 import arc.util.*;
+import mindustry.entities.*;
 import mindustry.game.*;
 import mindustry.gen.*;
 
@@ -39,6 +41,30 @@ public class ModuleType{
     public SlotType slot = SlotType.none;
     /** How many free slots of {@link #slot} this module requires. */
     public int slotCost = 1;
+
+    /** Scales the machine's total health. */
+    public float healthMultiplier = 1f;
+    /** Scales the damage every weapon on the machine deals. */
+    public float damageMultiplier = 1f;
+    /** Scales weapon fire rate (>1 = reloads faster). */
+    public float reloadMultiplier = 1f;
+    /** Scales the machine's top speed. */
+    public float speedMultiplier = 1f;
+    /** Scales the machine's total weight (<1 = lighter, so faster). */
+    public float weightMultiplier = 1f;
+    /** Scales power produced by the engines. */
+    public float powerProductionMultiplier = 1f;
+    /** Scales power drawn by everything on the machine. */
+    public float powerUseMultiplier = 1f;
+    /** Scales the drivetrain's hauling capacity. */
+    public float haulMultiplier = 1f;
+
+    /** Effect emitted every so often while the module is running. Null = none. */
+    public @Nullable Effect ambientEffect;
+    /** Chance per tick to emit {@link #ambientEffect}. */
+    public float ambientChance = 0.1f;
+    /** Colour handed to the effect. */
+    public Color ambientColor = Color.white;
 
     protected TextureRegion region, cellRegion;
 
@@ -92,10 +118,26 @@ public class ModuleType{
         if(powerUse > 0) stat(table, "Power -", Strings.autoFixed(powerUse * 60f, 1) + "/s");
         if(limit >= 0) stat(table, "Max per machine", "" + limit);
         if(slot != SlotType.none) stat(table, "Slots needed", slotCost + " " + slot.title.toLowerCase());
+
+        mult(table, "Health", healthMultiplier, false);
+        mult(table, "Damage", damageMultiplier, false);
+        mult(table, "Fire rate", reloadMultiplier, false);
+        mult(table, "Speed", speedMultiplier, false);
+        mult(table, "Weight", weightMultiplier, true);
+        mult(table, "Power output", powerProductionMultiplier, false);
+        mult(table, "Power draw", powerUseMultiplier, true);
+        mult(table, "Haul capacity", haulMultiplier, false);
+
         buildStats(table);
     }
 
     public void buildStats(Table table){
+    }
+
+    protected void mult(Table table, String key, float value, boolean lowerIsBetter){
+        if(Mathf.equal(value, 1f, 0.001f)) return;
+        boolean good = lowerIsBetter ? value < 1f : value > 1f;
+        stat(table, key, (good ? "[lime]" : "[scarlet]") + "x" + Strings.autoFixed(value, 2) + "[]");
     }
 
     protected void stat(Table table, String key, String value){

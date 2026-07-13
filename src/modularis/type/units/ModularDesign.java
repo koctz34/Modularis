@@ -67,6 +67,32 @@ public class ModularDesign{
         return slotsProvided(type) - slotsUsed(type);
     }
 
+    /**
+     * True if this module actually fits in the slots the command core(s) provide.
+     *
+     * Slots aren't just a build-time check: tear the core off a finished machine (or delete
+     * it in the editor) and the modules it was powering must stop working. Modules are fitted
+     * greedily in placement order - the ones that no longer fit go inert. They still weigh
+     * what they weigh and still take hits; they just do nothing.
+     *
+     * Computed from the design alone, so the world, the editor, saves and clients all agree.
+     */
+    public boolean isActive(PlacedModule m){
+        SlotType type = m.type.slot;
+        if(type == SlotType.none) return true;
+
+        int cap = slotsProvided(type);
+        int used = 0;
+        for(PlacedModule o : modules){
+            if(o.type.slot != type) continue;
+
+            boolean fits = used + o.type.slotCost <= cap;
+            if(fits) used += o.type.slotCost;
+            if(o == m) return fits;
+        }
+        return false;
+    }
+
     /** True if more slots are used than the core(s) provide (e.g. the core was removed). */
     public boolean slotsOverused(){
         for(SlotType t : SlotType.values()){

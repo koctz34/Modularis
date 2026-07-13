@@ -4,7 +4,12 @@ import arc.graphics.*;
 import arc.graphics.g2d.*;
 import arc.math.*;
 import arc.math.geom.*;
+import arc.struct.*;
 import arc.util.*;
+import mindustry.ai.types.*;
+import mindustry.content.*;
+import mindustry.entities.*;
+import mindustry.entities.bullet.*;
 import mindustry.entities.units.*;
 import mindustry.gen.*;
 import mindustry.graphics.*;
@@ -12,6 +17,8 @@ import mindustry.type.*;
 
 import modularis.content.*;
 import modularis.type.units.modules.*;
+
+import static mindustry.Vars.*;
 
 /**
  * A ground (tank) unit whose body, stats, movement and mounted modules are driven
@@ -24,6 +31,8 @@ import modularis.type.units.modules.*;
 public class ModularUnitType extends UnitType{
     /** Sprite pixels per grid cell (all module cells are 16x16). */
     public static final int spritePx = 16;
+
+    public static final float[] shedThresholds = {0.7f, 0.5f, 0.2f};
 
     private final Vec2 tmp = new Vec2();
 
@@ -77,12 +86,26 @@ public class ModularUnitType extends UnitType{
         super.update(unit);
         if(!(unit instanceof ModularUnitEntity e) || e.design == null) return;
 
+        updateShedding(e);
+
         ModularPhysics.Stats stats = ModularPhysics.compute(e.design);
         unit.speedMultiplier(stats.speedMultiplier());
         unit.dragMultiplier(stats.dragMultiplier());
+        unit.damageMultiplier(stats.damageMultiplier);
+
+        unit.disarmed(!stats.canShoot());
+        unit.reloadMultiplier(Math.max(stats.fireRateMultiplier(), 0.05f));
+
+        if(stats.isKamikaze() && !net.client()){
+            float reach = unit.hitSize / 2f + stats.detonateRange;
+            if(Units.closestTarget(unit.team, unit.x, unit.y, reach, u -> true, b -> true) != null){
+                unit.kill();
+                return;
+            }
+        }
 
         float cell = cellWorld();
-        float cx = e.design.centerX(), cy = e.design.centerY();
+        float cx = e.originX, cy = e.originY;
         float rot = unit.rotation - 90f;
 
         for(MenderMount m : e.menders){
@@ -90,12 +113,15 @@ public class ModularUnitType extends UnitType{
             m.type.updateMender(e, m, tmp.x, tmp.y);
         }
 
-        //turbo heaters vent exhaust smoke (stateless, so just walk the design)
+        //any module can idly puff out an effect (turbo exhaust, steam, sparks...) - it's just
+        //a field on ModuleType, so content decides. Stateless, so we walk the design directly.
         for(PlacedModule m : e.design.modules){
-            if(m.type instanceof ModulTurbo tb){
-                worldPos(unit, m, cell, cx, cy, rot, tmp);
-                tb.updateTurbo(e, m, tmp.x, tmp.y);
-            }
+            ModuleType t = m.type;
+            if(t.ambientEffect == null || !e.design.isActive(m)) continue;
+            if(!Mathf.chanceDelta(t.ambientChance)) continue;
+
+            worldPos(unit, m, cell, cx, cy, rot, tmp);
+            t.ambientEffect.at(tmp.x, tmp.y, unit.rotation, t.ambientColor);
         }
 
         //wheel dust while actually driving
@@ -103,13 +129,27 @@ public class ModularUnitType extends UnitType{
         if(moveFrac > 0.12f) emitWheelDust(unit, e.design, cell, cx, cy, rot, moveFrac);
     }
 
-    /** Local (pre-rotation) offset of a module's centre from the unit centre. Writes into {@code out}. */
+    private void updateShedding(ModularUnitEntity e){
+        float max = e.maxHealth();
+        if(max <= 0f || e.design == null) return;
+
+        float frac = e.health() / max;
+        int target = 0;
+        for(float th : shedThresholds){
+            if(frac <= th) target++;
+        }
+
+        while(e.shedCount < target){
+            e.shedCount++;
+            e.shedRandomModule(e.shedCount);
+        }
+    }
+
     private void localOffset(PlacedModule m, float cell, float cx, float cy, Vec2 out){
         float mcx = m.x + m.type.w / 2f, mcy = m.y + m.type.h / 2f;
         out.set((mcx - cx) * cell, (mcy - cy) * cell);
     }
 
-    /** World position of a module's centre, given the unit's transform. Writes into {@code out}. */
     private void worldPos(Unit unit, PlacedModule m, float cell, float cx, float cy, float rot, Vec2 out){
         localOffset(m, cell, cx, cy, out);
         out.rotate(rot).add(unit.x, unit.y);
@@ -136,12 +176,11 @@ public class ModularUnitType extends UnitType{
         }
 
         float cell = cellWorld();
-        float cx = design.centerX(), cy = design.centerY();
+        float cx = unit instanceof ModularUnitEntity e ? e.originX : design.centerX();
+        float cy = unit instanceof ModularUnitEntity e ? e.originY : design.centerY();
 
         drawShadow(unit, design, cell, cx, cy);
 
-        //each pass gets its own z: the batch is z-sorted, so passes sharing a z can be
-        //reordered - which let the dark outline cover the bodies (black silhouette).
         Draw.z(Layer.groundUnit - 0.01f);
         drawOutline(unit, design, cell, cx, cy);
 
@@ -233,10 +272,77 @@ public class ModularUnitType extends UnitType{
         Draw.reset();
     }
 
+    /**
+     * The AI gates all shooting on {@code hasWeapons()}, which is just
+     * {@code type.weapons.size > 0}. Our turrets are per-instance mounts, not entries in
+     * the type's weapon list, so without this the AI thinks every modular machine is
+     * unarmed and never sets {@code isShooting} - the turrets would only ever fire under
+     * direct player control.
+     */
+    /**
+     * The dummy weapon is never mounted (setDesign replaces {@code unit.mounts} with the
+     * real turrets), so we must keep it out of the outline-generation pass too - otherwise
+     * the sprite packer would bake an outline for a weapon that is never drawn.
+     */
+    @Override
+    public void getRegionsToOutline(Seq<TextureRegion> out){
+        //deliberately empty: this unit's outlines are composed at draw time
+    }
+
+    @Override
+    public UnitController createController(Unit unit){
+        //Only stand in for the AI controller - never for CommandAI. Vanilla picks
+        //  (!playerControllable || (team.isAI() && !rtsAi)) ? aiController.get() : new CommandAI()
+        //so a player-team unit must keep its CommandAI or it stops answering RTS orders.
+        //That's exactly how a vanilla crawler stays commandable while still being a suicide AI
+        //in enemy waves. Replacing the controller unconditionally is what broke RTS control.
+        if(isKamikaze(unit) && usesAiController(unit)){
+            return new SuicideAI();
+        }
+        return super.createController(unit);
+    }
+
+    /** True when vanilla would hand this unit an AI controller rather than a CommandAI. */
+    public boolean usesAiController(Unit unit){
+        return !playerControllable || (unit.team.isAI() && !unit.team.rules().rtsAi);
+    }
+
+    public static boolean isKamikaze(Unit unit){
+        return unit instanceof ModularUnitEntity e && e.design != null
+            && ModularPhysics.compute(e.design).isKamikaze();
+    }
+
+    @Override
+    public void init(){
+        if(weapons.isEmpty()){
+            float r = 0f;
+            for(ModuleType t : MdlModules.all){
+                if(t instanceof ModulTurret mt) r = Math.max(r, mt.range());
+            }
+            float reach = r > 0f ? r : 150f;
+
+            weapons.add(new Weapon(){{
+                display = false;
+                mirror = false;
+                rotate = false;
+                //inert on every axis, in case it is ever somehow mounted
+                bullet = new BasicBulletType(1f, 0f){{
+                    speed = 1f;
+                    lifetime = reach;   //range = speed * lifetime
+                    range = reach;
+                    damage = 0f;
+                    collides = false;
+                    hitEffect = despawnEffect = Fx.none;
+                }};
+            }});
+        }
+
+        super.init();
+    }
+
     @Override
     public void load(){
         super.load();
-        //avoid the "missing texture" icon: borrow the command core sprite
         ModuleType root = MdlModules.root;
         if(root != null && root.region() != null && root.region().found()){
             region = fullIcon = uiIcon = root.region();

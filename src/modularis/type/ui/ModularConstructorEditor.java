@@ -177,6 +177,14 @@ public class ModularConstructorEditor extends BaseDialog{
             .append(Strings.autoFixed(s.powerProd * 60f, 1)).append('/')
             .append(Strings.autoFixed(s.powerUse * 60f, 1)).append("[]\n");
 
+        //weapon fire rate: starved turrets cycle slowly, no core means they can't fire at all
+        if(!s.canShoot()){
+            sb.append("Turrets: [scarlet]disarmed[]\n");
+        }else if(s.fireRateMultiplier() < 0.999f){
+            sb.append("Fire rate: [orange]x")
+                .append(Strings.autoFixed(s.fireRateMultiplier(), 2)).append("[]\n");
+        }
+
         //load
         if(s.hasWheels){
             String lcol = s.overloaded ? "[scarlet]" : "[lime]";
@@ -195,9 +203,19 @@ public class ModularConstructorEditor extends BaseDialog{
                 .append(Strings.autoFixed(s.balancePercent(), 0)).append("%[]\n");
         }
 
-        //turbo boost
-        if(s.boostFactor > 1.001f){
-            sb.append("Boost: [accent]x").append(Strings.autoFixed(s.boostFactor, 2)).append("[]\n");
+        //C4 / kamikaze
+        if(s.isKamikaze()){
+            sb.append("[scarlet]KAMIKAZE[] (").append(s.c4Count).append(" C4)\n");
+            sb.append("Blast: [scarlet]").append(Strings.autoFixed(s.blastDamage, 0))
+                .append("[] dmg, ").append(Strings.autoFixed(s.blastRadius / 8f, 1)).append(" tiles\n");
+        }
+
+        //stat multipliers stacked from every module carrying them
+        if(s.hasMultipliers()){
+            convMult(sb, "Health", s.healthMultiplier, false);
+            convMult(sb, "Damage", s.damageMultiplier, false);
+            convMult(sb, "Fire rate", s.reloadMultiplier, false);
+            convMult(sb, "Speed", s.speedMod, false);
         }
 
         //top speed
@@ -219,13 +237,24 @@ public class ModularConstructorEditor extends BaseDialog{
         if(s.underpowered) sb.append("[orange]! Underpowered[]\n");
         if(s.overloaded) sb.append("[orange]! Overloaded - too heavy for its drivetrain[]\n");
         if(s.unbalanced) sb.append("[orange]! Unbalanced - mass is not over the drive parts[]\n");
-        if(design.slotsOverused()) sb.append("[scarlet]! Not enough slots - add a command core[]\n");
+        if(s.inactiveCount > 0){
+            sb.append("[scarlet]! ").append(s.inactiveCount)
+                .append(" module(s) have no slot - dead weight[]\n");
+        }
         if(s.hasRoot && s.hasWheels && !s.overloaded && !s.underpowered && !s.unbalanced
             && !design.slotsOverused()){
             sb.append("[lime]Ready to roll[]");
         }
 
         return sb.toString();
+    }
+
+    /** Appends a convertor multiplier line, but only when it actually changes something. */
+    private void convMult(StringBuilder sb, String key, float value, boolean lowerIsBetter){
+        if(Mathf.equal(value, 1f, 0.001f)) return;
+        boolean good = lowerIsBetter ? value < 1f : value > 1f;
+        sb.append(key).append(": ").append(good ? "[lime]" : "[scarlet]")
+            .append('x').append(Strings.autoFixed(value, 2)).append("[]\n");
     }
 
     private static class ModBtn{
@@ -415,6 +444,16 @@ public class ModularConstructorEditor extends BaseDialog{
                 float sy = screenY(m.y + m.type.h / 2f);
                 float w = m.type.w * cp, h = m.type.h * cp;
                 m.type.drawTop(null, m, sx, sy, w, h, 0f);
+            }
+
+            //modules with no slot to run in: struck through in red, they are dead weight
+            for(PlacedModule m : design.modules){
+                if(design.isActive(m)) continue;
+                float sx = screenX(m.x + m.type.w / 2f);
+                float sy = screenY(m.y + m.type.h / 2f);
+                float w = m.type.w * cp, h = m.type.h * cp;
+                Draw.color(Pal.remove, 0.4f);
+                Fill.crect(sx - w / 2f, sy - h / 2f, w, h);
             }
 
             //delete-highlight

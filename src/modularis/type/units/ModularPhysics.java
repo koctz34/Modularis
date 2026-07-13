@@ -68,18 +68,44 @@ public class ModularPhysics{
         float comX = 0f, comY = 0f, massSum = 0f;
         float driveX = 0f, driveY = 0f;
 
+        //convertor multipliers that get folded in once the raw totals are known
+        float weightMult = 1f, haulMult = 1f, prodMult = 1f, useMult = 1f;
+
+        //C4: the single biggest charge sets the base blast size, the count scales it up
+        float c4Radius = 0f;
+
         for(PlacedModule pm : design.modules){
             ModuleType t = pm.type;
             float mcx = pm.x + t.w / 2f, mcy = pm.y + t.h / 2f;
 
-            s.powerProd += t.powerProduction;
-            s.powerUse += t.powerUse;
             if(t.category == ModuleCategory.root) s.hasRoot = true;
 
+            //mass counts no matter what: an unbound module is still bolted on and still
+            //weighs (and still soaks up hits). It just doesn't DO anything.
             float mass = Math.max(t.weight, 0.0001f);
             comX += mcx * mass;
             comY += mcy * mass;
             massSum += mass;
+
+            //everything past here is the module's FUNCTION, which needs a slot to run in
+            if(!design.isActive(pm)){
+                s.inactiveCount++;
+                continue;
+            }
+
+            s.powerProd += t.powerProduction;
+            s.powerUse += t.powerUse;
+
+            //ANY module may bend the machine's stats - convertors and turbos are just
+            //modules whose multipliers happen to be interesting. They all stack.
+            s.healthMultiplier *= t.healthMultiplier;
+            s.damageMultiplier *= t.damageMultiplier;
+            s.reloadMultiplier *= t.reloadMultiplier;
+            s.speedMod *= t.speedMultiplier;
+            weightMult *= t.weightMultiplier;
+            haulMult *= t.haulMultiplier;
+            prodMult *= t.powerProductionMultiplier;
+            useMult *= t.powerUseMultiplier;
 
             if(t instanceof ModulWheel w){
                 float haul = Math.max(w.haulWeight, 0.001f);
@@ -89,9 +115,12 @@ public class ModularPhysics{
                 driveSum += w.moveSpeed * haul;
                 driveX += mcx * haul;
                 driveY += mcy * haul;
-            }else if(t instanceof ModulTurbo tb){
-                //turbo heaters stack multiplicatively on top of everything else
-                s.boostFactor *= tb.speedBoost;
+            }else if(t instanceof ModulC4 c4){
+                //more charges = more damage, and a bigger (but sub-linear) blast
+                s.c4Count++;
+                s.blastDamage += c4.damage;
+                c4Radius = Math.max(c4Radius, c4.radius);
+                s.detonateRange = Math.max(s.detonateRange, c4.detonateRange);
             }
         }
 
@@ -100,8 +129,37 @@ public class ModularPhysics{
             comY /= massSum;
         }
 
+        //RAW capacity: the drivetrain's own numbers, before any convertor scaling. Top speed
+        //and the drive centroid are ratios over these, so scaling capacity must not touch them.
+        float rawCapacity = s.capacity;
+
         // 3. drivetrain top speed = capacity-weighted average
-        s.topRating = s.capacity > 0.0001f ? driveSum / s.capacity : 0f;
+        s.topRating = rawCapacity > 0.0001f ? driveSum / rawCapacity : 0f;
+
+        // 4. balance: how far the mass sits from the drive parts holding it up
+        if(rawCapacity > 0.0001f){
+            driveX /= rawCapacity;
+            driveY /= rawCapacity;
+
+            //normalise the offset by the machine's own size, so "far" scales with the build
+            float span = Math.max(1f, Math.max(design.widthCells(), design.heightCells()) * 0.5f);
+            s.balanceOffset = Mathf.dst(comX, comY, driveX, driveY) / span;
+
+            float excess = Math.max(0f, s.balanceOffset - balanceTolerance);
+            s.balanceFactor = Mathf.clamp(1f - excess * balancePenalty, minBalance, 1f);
+        }else{
+            s.balanceOffset = 0f;
+            s.balanceFactor = 0f;
+        }
+
+        //blast radius scales with the square root of the charge count, like real explosives
+        s.blastRadius = s.c4Count > 0 ? c4Radius * (float)Math.sqrt(s.c4Count) : 0f;
+
+        //now fold in the convertor multipliers
+        s.weight *= weightMult;
+        s.capacity = rawCapacity * haulMult;
+        s.powerProd *= prodMult;
+        s.powerUse *= useMult;
 
         // 5. power satisfaction
         s.powerRatio = s.powerUse <= 0.0001f ? 1f : Mathf.clamp(s.powerProd / s.powerUse, 0f, 1f);
@@ -118,24 +176,8 @@ public class ModularPhysics{
         float wt = Mathf.clamp((s.weight - lightWeight) / (heavyWeight - lightWeight), 0f, 1f);
         s.weightFactor = Mathf.lerp(1f, minWeightSpeed, wt);
 
-        // 4. balance: how far the mass sits from the drive parts holding it up
-        if(s.capacity > 0.0001f){
-            driveX /= s.capacity;
-            driveY /= s.capacity;
-
-            //normalise the offset by the machine's own size, so "far" scales with the build
-            float span = Math.max(1f, Math.max(design.widthCells(), design.heightCells()) * 0.5f);
-            s.balanceOffset = Mathf.dst(comX, comY, driveX, driveY) / span;
-
-            float excess = Math.max(0f, s.balanceOffset - balanceTolerance);
-            s.balanceFactor = Mathf.clamp(1f - excess * balancePenalty, minBalance, 1f);
-        }else{
-            s.balanceOffset = 0f;
-            s.balanceFactor = 0f;
-        }
-
         s.speedRating = s.topRating * s.loadFactor * s.weightFactor * s.balanceFactor
-            * s.powerRatio * s.boostFactor;
+            * s.powerRatio * s.speedMod;
 
         s.overloaded = s.capacity > 0f && s.weight > s.capacity;
         s.underpowered = s.powerRatio < 0.999f;
@@ -148,11 +190,45 @@ public class ModularPhysics{
     public static class Stats{
         public boolean hasRoot, hasWheels, overloaded, underpowered, unbalanced, immobile;
         public int wheelCount;
+        /** Modules bolted on but with no slot to run in: dead weight, no function. */
+        public int inactiveCount;
         public float weight, capacity;
         public float loadFactor, weightFactor, balanceFactor, balanceOffset;
-        public float boostFactor = 1f;
         public float powerProd, powerUse, powerRatio;
         public float topRating, speedRating;
+
+        //---- stat multipliers, stacked from every active module (1 = untouched) ----
+        /** Applied to the machine's max health when the design is assigned. */
+        public float healthMultiplier = 1f;
+        /** Fed to {@code unit.damageMultiplier} each tick. */
+        public float damageMultiplier = 1f;
+        /** Fed to {@code unit.reloadMultiplier} each tick. */
+        public float reloadMultiplier = 1f;
+        /** Extra top-speed multiplier, folded into {@link #speedRating}. */
+        public float speedMod = 1f;
+
+        //---- C4 (kamikaze) ----
+        /** Number of C4 charges aboard. Any at all makes the machine a kamikaze. */
+        public int c4Count;
+        /** Total blast damage (sums across charges). */
+        public float blastDamage;
+        /** Blast radius, grown from the biggest charge by sqrt(count). */
+        public float blastRadius;
+        /** Reach beyond the hitbox at which an enemy sets it off. */
+        public float detonateRange;
+
+        public boolean isKamikaze(){
+            return c4Count > 0;
+        }
+
+        /** True if any convertor is actually changing something. */
+        /** True if any module is actually bending the machine's stats. */
+        public boolean hasMultipliers(){
+            return !Mathf.equal(healthMultiplier, 1f, 0.001f)
+                || !Mathf.equal(damageMultiplier, 1f, 0.001f)
+                || !Mathf.equal(reloadMultiplier, 1f, 0.001f)
+                || !Mathf.equal(speedMod, 1f, 0.001f);
+        }
 
         public float speedMultiplier(){
             return immobile ? 0f : speedRating;
@@ -162,6 +238,22 @@ public class ModularPhysics{
             if(capacity <= 0f) return 1f;
             float load = weight / capacity;
             return Mathf.clamp(1f + Math.max(0f, load - 1f) * 0.6f, 1f, 3f);
+        }
+
+        /**
+         * Weapon fire rate: the convertor multiplier scaled by how well the machine is
+         * powered. Starve the turrets of power and they cycle slower and slower.
+         */
+        public float fireRateMultiplier(){
+            return reloadMultiplier * powerRatio;
+        }
+
+        /**
+         * Turrets need a command core to aim them, and at least a trickle of power to cycle.
+         * Without either, the machine is disarmed outright.
+         */
+        public boolean canShoot(){
+            return hasRoot && powerRatio > 0.02f;
         }
 
         /** Effective top speed in tiles/second, for display. */

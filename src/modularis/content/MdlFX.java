@@ -8,10 +8,27 @@ import mindustry.content.*;
 import mindustry.entities.*;
 import mindustry.graphics.*;
 
-/** Mod effects. Call {@link #load()} once from content init. */
+import modularis.type.units.*;
+import modularis.type.units.modules.*;
+
 public class MdlFX{
 
-    public static Effect bloodPuddle, workerBuild, wheelDust, menderPulse, turboSmoke;
+    public static Effect bloodPuddle, workerBuild, wheelDust, menderPulse, turboSmoke,
+        moduleDebrisFly, moduleDebrisRest;
+
+    public static final float debrisLife = 60f * 120f;
+    public static final float debrisFlyTime = 55f;
+
+    public static class Debris{
+        public final ModuleType type;
+        public final float dist, spin;
+
+        public Debris(ModuleType type, float dist, float spin){
+            this.type = type;
+            this.dist = dist;
+            this.spin = spin;
+        }
+    }
 
     private static boolean loaded;
 
@@ -19,7 +36,66 @@ public class MdlFX{
         if(loaded) return;
         loaded = true;
 
-        //exhaust smoke puffed out by a turbo heater; e.color tints the fresh smoke
+        //phase 1: tumbling through the air, drawn above the units
+        moduleDebrisFly = new Effect(debrisFlyTime, e -> {
+            if(!(e.data instanceof Debris d)) return;
+            TextureRegion reg = d.type.region();
+            if(reg == null || !reg.found()) return;
+
+            float ft = e.fin();
+            float p = 1f - (1f - ft) * (1f - ft); //ease-out slide
+
+            float cell = ModularUnitType.cellWorld();
+            float dw = d.type.w * cell, dh = d.type.h * cell;
+
+            float px = e.x + Angles.trnsx(e.rotation, d.dist * p);
+            float py = e.y + Angles.trnsy(e.rotation, d.dist * p);
+
+            float hop = Mathf.slope(ft);   //0 -> 1 -> 0, the arc through the air
+            float scl = 1f + hop * 0.35f;
+            float rot = d.spin * p;
+
+            //shadow drops away below as the piece rises
+            Draw.color(0f, 0f, 0f, 0.28f);
+            Draw.rect(reg, px + hop * 4f, py - hop * 4f, dw, dh, rot);
+
+            Draw.color(Color.white, Color.valueOf("6b6560"), 0.25f);
+            Draw.rect(reg, px, py, dw * scl, dh * scl, rot);
+
+            //sparks as it tears free
+            Fx.rand.setSeed(e.id);
+            Draw.color(Pal.lightOrange, Color.gray, ft);
+            Draw.alpha(1f - ft);
+            for(int i = 0; i < 4; i++){
+                float a = Fx.rand.random(360f);
+                float dd = Fx.rand.random(2f, 10f) * ft;
+                Fill.circle(px + Angles.trnsx(a, dd), py + Angles.trnsy(a, dd),
+                    (1.5f + Fx.rand.random(1.4f)) * (1f - ft));
+            }
+            Draw.reset();
+        }).layer(Layer.flyingUnit + 1f);
+        moduleDebrisFly.clip = 260f;
+
+        //phase 2: settled on the ground, drawn under the units, fades out at the end
+        moduleDebrisRest = new Effect(debrisLife, e -> {
+            if(!(e.data instanceof ModuleType type)) return;
+            TextureRegion reg = type.region();
+            if(reg == null || !reg.found()) return;
+
+            float cell = ModularUnitType.cellWorld();
+            float dw = type.w * cell, dh = type.h * cell;
+            float fade = Mathf.clamp((e.lifetime - e.time) / 90f);
+
+            Draw.color(0f, 0f, 0f, 0.28f * fade);
+            Draw.rect(reg, e.x + 1.5f, e.y - 1.5f, dw, dh, e.rotation);
+
+            Draw.color(Color.white, Color.valueOf("6b6560"), 0.25f);
+            Draw.alpha(fade);
+            Draw.rect(reg, e.x, e.y, dw, dh, e.rotation);
+            Draw.reset();
+        }).layer(Layer.debris);
+        moduleDebrisRest.clip = 260f;
+
         turboSmoke = new Effect(54f, e -> {
             Fx.rand.setSeed(e.id);
             Draw.color(e.color, Color.valueOf("2b2624"), e.fin());
@@ -35,7 +111,6 @@ public class MdlFX{
             Draw.reset();
         });
 
-        //expanding heal ring; e.rotation carries the radius, e.color the tint
         menderPulse = new Effect(42f, e -> {
             Draw.color(e.color);
             Lines.stroke(2.4f * e.fout());
@@ -47,7 +122,6 @@ public class MdlFX{
         });
         menderPulse.clip = 600f;
 
-        //kicked-up dust from a driving wheel (tank-tread style)
         wheelDust = new Effect(34f, e -> {
             Fx.rand.setSeed(e.id);
             Draw.color(Color.valueOf("8a7b63"), Color.valueOf("5a4c40"), e.fin());
