@@ -36,6 +36,8 @@ public class ModularUnitEntity extends TankUnit{
     /** How many modules have already been shed at damage thresholds. */
     public int shedCount;
 
+    public float weaponRange = -1f;
+
     /** Ability (mender) mounts, simulated by us; weapons live in the native {@link #mounts} array. */
     public final Seq<MenderMount> menders = new Seq<>();
 
@@ -96,6 +98,23 @@ public class ModularUnitEntity extends TankUnit{
             }
         }
         mounts = weaponMounts.toArray(WeaponMount.class);
+        recomputeRange();
+    }
+
+    private void recomputeRange(){
+        float r = 0f;
+        if(design != null){
+            for(PlacedModule m : design.modules){
+                if(!design.isActive(m)) continue;
+                if(m.type instanceof ModulTurret t) r = Math.max(r, t.range());
+            }
+        }
+        weaponRange = r;
+    }
+
+    @Override
+    public float range(){
+        return weaponRange >= 0f ? weaponRange : super.range();
     }
 
     private void rebuildMenders(){

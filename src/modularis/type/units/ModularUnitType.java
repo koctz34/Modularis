@@ -86,6 +86,10 @@ public class ModularUnitType extends UnitType{
         super.update(unit);
         if(!(unit instanceof ModularUnitEntity e) || e.design == null) return;
 
+        if(e.weaponRange >= 0f){
+            range = maxRange = e.weaponRange;
+        }
+
         updateShedding(e);
 
         ModularPhysics.Stats stats = ModularPhysics.compute(e.design);
