@@ -16,7 +16,7 @@ import modularis.type.units.modules.*;
 public class MdlFX{
 
     public static Effect bloodPuddle, workerBuild, wheelDust, menderPulse, turboSmoke,
-        moduleDebrisFly, moduleDebrisRest, neoplasmLaserChargeSmall;
+        moduleDebrisFly, moduleDebrisRest, neoplasmLaserChargeSmall, shootFlame;
 
     public static final float debrisLife = 60f * 120f;
     public static final float debrisFlyTime = 55f;
@@ -37,6 +37,14 @@ public class MdlFX{
     public static void load(){
         if(loaded) return;
         loaded = true;
+
+        shootFlame = new Effect(32f, 90f, e -> {
+            Draw.color(Pal.lightFlame, Pal.darkFlame, Color.gray, e.fin());
+    
+            Angles.randLenVectors(e.id, 12, e.finpow() * 60f, e.rotation, 14f, (x, y) -> {
+                Fill.circle(e.x + x, e.y + y, 0.65f + e.fout() * 1.5f);
+            });
+        }).followParent(false);
 
         neoplasmLaserChargeSmall = new Effect(40f, 100f, e -> {
             Draw.color(Pal.neoplasm1);

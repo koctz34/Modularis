@@ -27,7 +27,7 @@ public class MdlModules{
         // movement
         wheel, track, trackBig, trackGigant,
         // weapons
-        gun, discharger, cannon, sanguis, laculum, artillery, wolfRae, pointDefence, buildTower, repairTower,
+        gun, discharger, cannon, sanguis, laculum, flamethrower, artillery, wolfRae, pointDefence, buildTower, repairTower,
         // abilities
         mender, pulsus, turboHeater, compressor, reactiveArmorer, transformator, c4, shieldEmitter;
 
@@ -384,6 +384,38 @@ public class MdlModules{
             }};
         }});
 
+        flamethrower = add(new ModulTurret("flamethower3x1"){{
+            localizedName = "Flamethrower";
+            description = "Accendite eos igne Graeco.";
+            baseSprite = "base3x1";
+            weight = 3.8f;
+            health = 180f;
+            w = 1; h = 3;
+            powerUse = 2.7f;
+            slotCost = 2;
+            weapon = new Weapon("modularis-flamethower3x1"){{
+                rotate = true;
+                reload = 6f;
+                inaccuracy = 1f;
+                rotateSpeed = 8f;
+                shootCone = 2f;
+                shootSound = Sounds.shootFlame;
+                recoil = 0.2f;
+                ejectEffect = Fx.none;
+                bullet = new BulletType(4.2f, 32f){{
+                    hitSize = 12f;
+                    lifetime = 13f;
+                    statusDuration = 60f * 7;
+                    shootEffect = MdlFX.shootFlame;
+                    hitEffect = Fx.hitFlameSmall;
+                    despawnEffect = Fx.none;
+                    status = StatusEffects.burning;
+                    keepVelocity = false;
+                    hittable = false;
+                }};
+            }};
+        }});
+
         artillery = add(new ModulTurret("artillery3x2"){{
             localizedName = "Cannon";
             description = "Has a lot of damage, but slow.";
@@ -497,7 +529,7 @@ public class MdlModules{
         }});
 
         repairTower = add(new ModulTurret("repair-tower2x1"){{
-            localizedName = "Build Tower";
+            localizedName = "Repair Tower";
             description = "Repair ally buildings.";
             baseSprite = "base2x1";
             weight = 3f;
