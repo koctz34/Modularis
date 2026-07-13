@@ -3,6 +3,7 @@ package modularis.content;
 import arc.graphics.*;
 import arc.struct.*;
 import mindustry.content.Fx;
+import mindustry.content.StatusEffects;
 import mindustry.entities.bullet.*;
 import mindustry.gen.*;
 import mindustry.type.*;
@@ -25,9 +26,9 @@ public class MdlModules{
         // movement
         wheel, track, trackBig,
         // weapons
-        gun, cannon, artillery,
+        gun, discharger, cannon, artillery,
         // abilities
-        mender, turboHeater, compressor, reactiveArmorer, c4;
+        mender, pulsus, turboHeater, compressor, reactiveArmorer, c4;
 
     public static void load(){
         if(!all.isEmpty()) return;
@@ -177,6 +178,35 @@ public class MdlModules{
             }};
         }});
 
+        discharger = add(new ModulTurret("discharger1x1"){{
+            localizedName = "Discharger";
+            description = "Emits bursts of energy.";
+            powerUse = 1.6f;
+            weapon = new Weapon("modularis-discharger1x1"){{
+                rotate = true;
+                reload = 13f;
+                inaccuracy = 5f;
+                rotateSpeed = 8f;
+                shootCone = 23f;
+                shootSound = Sounds.shootArc;
+                bullet = new LightningBulletType(){{
+                    damage = 12;
+                    lightningLength = 19;
+                    collidesAir = true;
+    
+                    lightningType = new BulletType(0.0001f, 0f){{
+                        lifetime = Fx.lightning.lifetime;
+                        hitEffect = Fx.hitLancer;
+                        despawnEffect = Fx.none;
+                        status = StatusEffects.shocked;
+                        hittable = false;
+                        lightColor = Color.gold;
+                        collidesAir = false;
+                    }};
+                }};
+            }};
+        }});
+
         cannon = add(new ModulTurret("cannon2x1"){{
             localizedName = "Cannon";
             description = "Has a lot of damage, but slow.";
@@ -233,13 +263,26 @@ public class MdlModules{
         }});
 
         // ---- Abilities ----
-        mender = add(new ModulMender("mender1x1"){{
+        mender = add(new ModulPulsar("mender1x1"){{
             localizedName = "Mender";
             description = "Repair emitter. Periodically pulses to heal nearby allied units.";
             reload = 200f;
-            healRange = 100f;
+            pulseRange = 100f;
             healAmount = 55f;
             powerUse = 2f;
+        }});
+
+        pulsus = add(new ModulPulsar("pulsus3x1"){{
+            localizedName = "Pulsus";
+            description = "Damages nearby enemies and can rip a "
+                + "module clean off their machines.";
+            reload = 320f;
+            pulseRange = 85f;
+            w = 1; h = 3;
+            damage = 45f;
+            tearChance = 0.3f;
+            powerUse = 4f;
+            pulseColor = Color.valueOf("3ce1ff");
         }});
 
         compressor = add(new ModuleType("compressor1x1"){{
@@ -273,10 +316,11 @@ public class MdlModules{
             description = "Turns the machine into a kamikaze: it charges the nearest enemy "
                 + "and detonates. More charges, bigger blast.";
             slotCost = 1;
-            damage = 400f;
-            radius = 48f;
+            damage = 700f;
+            radius = 50f;
             weight = 2f;
             health = 40f;
+            healthMultiplier = 0.5f;
         }});
 
         turboHeater = add(new ModuleType("turboheater2x2"){{

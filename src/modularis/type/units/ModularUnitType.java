@@ -112,9 +112,9 @@ public class ModularUnitType extends UnitType{
         float cx = e.originX, cy = e.originY;
         float rot = unit.rotation - 90f;
 
-        for(MenderMount m : e.menders){
+        for(PulsarMount m : e.pulsars){
             worldPos(unit, m.placed, cell, cx, cy, rot, tmp);
-            m.type.updateMender(e, m, tmp.x, tmp.y);
+            m.type.updatePulse(e, m, tmp.x, tmp.y);
         }
 
         //any module can idly puff out an effect (turbo exhaust, steam, sparks...) - it's just

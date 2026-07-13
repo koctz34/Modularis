@@ -1,2 +1,2 @@
 # Modularis
-Reperi nova spatia technologia modulari.
+Per technologiam modularem nova spatia reperi.

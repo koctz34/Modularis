@@ -38,8 +38,7 @@ public class ModularUnitEntity extends TankUnit{
 
     public float weaponRange = -1f;
 
-    /** Ability (mender) mounts, simulated by us; weapons live in the native {@link #mounts} array. */
-    public final Seq<MenderMount> menders = new Seq<>();
+    public final Seq<PulsarMount> pulsars = new Seq<>();
 
     /** Sets the blueprint and derives dependent stats (max health, hitbox, weapon mounts). */
     public void setDesign(ModularDesign d){
@@ -73,7 +72,7 @@ public class ModularUnitEntity extends TankUnit{
     }
 
     private void rebuildMounts(){
-        menders.clear();
+        pulsars.clear();
         mounts = new WeaponMount[0];
         if(design == null) return;
 
@@ -93,8 +92,8 @@ public class ModularUnitEntity extends TankUnit{
                     wm.rotation = rotation;
                     weaponMounts.add(wm);
                 }
-            }else if(m.type instanceof ModulMender mm){
-                menders.add(new MenderMount(m, mm));
+            }else if(m.type instanceof ModulPulsar p){
+                pulsars.add(new PulsarMount(m, p));
             }
         }
         mounts = weaponMounts.toArray(WeaponMount.class);
@@ -117,15 +116,6 @@ public class ModularUnitEntity extends TankUnit{
         return weaponRange >= 0f ? weaponRange : super.range();
     }
 
-    private void rebuildMenders(){
-        menders.clear();
-        if(design == null) return;
-        for(PlacedModule m : design.modules){
-            if(!design.isActive(m)) continue;
-            if(m.type instanceof ModulMender mm) menders.add(new MenderMount(m, mm));
-        }
-    }
-
     // ---- battle damage: modules get torn off ----
 
     public void modulePos(PlacedModule m, Vec2 out){
@@ -145,11 +135,22 @@ public class ModularUnitEntity extends TankUnit{
         if(options.isEmpty()) return;
 
         Rand rand = new Rand(id() * 7919L + seed);
-        PlacedModule victim = options.get(rand.random(options.size - 1));
+        removeModule(options.get(rand.random(options.size - 1)));
+    }
 
+    public void tearOffModule(){
+        if(design == null || net.client()) return;
+
+        Seq<PlacedModule> options = design.modules.select(this::canShed);
+        if(options.isEmpty()) return;
+
+        removeModule(options.random());
+    }
+
+    private void removeModule(PlacedModule victim){
         launchDebris(victim);
         design.modules.remove(victim);
-        rebuildMenders();
+        rebuildMounts();
     }
 
     public void launchDebris(PlacedModule m){
