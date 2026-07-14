@@ -303,8 +303,8 @@ public class MdlModules{
                     lifetime = 65f;
                     width = 10f;
                     height = 12f;
-                    splashDamage = 50f;
-                    splashDamageRadius = 50f;
+                    splashDamage = 40f;
+                    splashDamageRadius = 40f;
                 }};
             }};
         }});
