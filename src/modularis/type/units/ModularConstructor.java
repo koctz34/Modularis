@@ -1,5 +1,6 @@
 package modularis.type.units;
 
+import arc.Core;
 import arc.audio.*;
 import arc.graphics.g2d.*;
 import arc.scene.ui.layout.*;
@@ -81,7 +82,8 @@ public class ModularConstructor extends UnitBlock{
         @Override
         public void draw(){
             Draw.rect(region, x, y);
-            Draw.z(Layer.blockOver);
+            Draw.z(Layer.legUnit + 0.1f);
+            Draw.rect(Core.atlas.find(name + "-top"), x, y);
         }
 
         @Override

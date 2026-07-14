@@ -173,6 +173,10 @@ public class ModularConstructorEditor extends BaseDialog{
         if(s.armor > 0f) sb.append("Armor: ").append(Strings.autoFixed(s.armor, 1)).append('\n');
         if(s.cargoCapacity > 0) sb.append("Cargo: ").append(s.cargoCapacity).append(" items\n");
         if(s.canBuild()) sb.append("Build: [lime]x").append(Strings.autoFixed(s.buildSpeed, 2)).append("[]\n");
+        if(s.canMine()){
+            sb.append("Drill: [lime]tier ").append(s.drillTier)
+                .append(", x").append(Strings.autoFixed(s.drillSpeed, 2)).append("[]\n");
+        }
 
         //power
         String pcol = s.underpowered ? "[scarlet]" : "[lime]";

@@ -97,6 +97,13 @@ public class ModularPhysics{
             s.cargoCapacity += t.cargoCapacity;
             s.buildSpeed += t.buildSpeed;
 
+            if(t instanceof ModulDrill d){
+                //the best drill sets what ore we can cut and how far we reach; speeds stack
+                s.drillTier = Math.max(s.drillTier, d.tier);
+                s.drillSpeed += d.drillSpeed;
+                s.drillRange = Math.max(s.drillRange, d.mineRange);
+            }
+
             //ANY module may bend the machine's stats - convertors and turbos are just
             //modules whose multipliers happen to be interesting. They all stack.
             s.healthMultiplier *= t.healthMultiplier;
@@ -204,6 +211,18 @@ public class ModularPhysics{
         public int cargoCapacity;
         /** Summed build speed. 0 = the machine cannot build at all. */
         public float buildSpeed;
+
+        /** Highest ore hardness the machine's drills can cut. -1 = no drill at all. */
+        public int drillTier = -1;
+        /** Summed drill speed. */
+        public float drillSpeed;
+        /** Longest drill reach, measured from the machine's hull. */
+        public float drillRange;
+
+        /** A machine can only mine if it carries at least one drill. */
+        public boolean canMine(){
+            return drillTier >= 0 && drillSpeed > 0f;
+        }
 
         /** A machine can only build if it carries at least one build module. */
         public boolean canBuild(){

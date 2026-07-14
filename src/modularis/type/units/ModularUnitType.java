@@ -7,6 +7,7 @@ import arc.math.*;
 import arc.math.geom.*;
 import arc.struct.*;
 import arc.util.*;
+import mindustry.ai.*;
 import mindustry.ai.types.*;
 import mindustry.content.*;
 import mindustry.entities.*;
@@ -57,6 +58,11 @@ public class ModularUnitType extends UnitType{
         buildSpeed = 1f;
         drawBuildBeam = false;
 
+        mineTier = 10;
+        mineSpeed = 1f;
+        mineFloor = true;
+        mineWalls = false;
+
         drawCell = false;
         drawItems = false;
         outlines = false;         //we draw our own composite outline
@@ -106,6 +112,11 @@ public class ModularUnitType extends UnitType{
 
         unit.buildSpeedMultiplier(stats.buildSpeed);
 
+        mineSpeed = Math.max(0f, e.drillSpeed);
+        if(e.drillRange > 0f){
+            mineRange = e.drillRange + unit.hitSize / 2f;
+        }
+
         if(stats.isKamikaze() && !net.client()){
             float reach = unit.hitSize / 2f + stats.detonateRange;
             if(Units.closestTarget(unit.team, unit.x, unit.y, reach, u -> true, b -> true) != null){
@@ -121,6 +132,11 @@ public class ModularUnitType extends UnitType{
         for(PulsarMount m : e.pulsars){
             worldPos(unit, m.placed, cell, cx, cy, rot, tmp);
             m.type.updatePulse(e, m, tmp.x, tmp.y);
+        }
+
+        for(DrillMount m : e.drills){
+            worldPos(unit, m.placed, cell, cx, cy, rot, tmp);
+            m.type.updateDrill(e, m, tmp.x, tmp.y);
         }
 
         //any module can idly puff out an effect (turbo exhaust, steam, sparks...) - it's just
@@ -165,12 +181,18 @@ public class ModularUnitType extends UnitType{
         out.rotate(rot).add(unit.x, unit.y);
     }
 
+    private void dustPos(Unit unit, PlacedModule m, float cell, float cx, float cy, float rot, Vec2 out){
+        float mcx = m.x + m.type.w / 2f;
+        float mcy = m.y + 0.5f;
+        out.set((mcx - cx) * cell, (mcy - cy) * cell).rotate(rot).add(unit.x, unit.y);
+    }
+
     private void emitWheelDust(Unit unit, ModularDesign design, float cell, float cx, float cy, float rot, float moveFrac){
         float chance = Mathf.clamp(moveFrac * 0.5f);
         for(PlacedModule m : design.modules){
             if(!(m.type instanceof ModulWheel)) continue;
             if(!Mathf.chanceDelta(chance)) continue;
-            worldPos(unit, m, cell, cx, cy, rot, tmp);
+            dustPos(unit, m, cell, cx, cy, rot, tmp);
             MdlFX.wheelDust.at(tmp.x, tmp.y, unit.rotation);
         }
     }
@@ -348,6 +370,19 @@ public class ModularUnitType extends UnitType{
         }
 
         super.init();
+
+        if(!commands.contains(UnitCommand.mineCommand)){
+            commands.add(UnitCommand.mineCommand);
+        }
+    }
+
+    @Override
+    public boolean allowCommand(Unit unit, UnitCommand command){
+        if(command == UnitCommand.mineCommand
+            && unit instanceof ModularUnitEntity e && !e.canMine()){
+            return false;
+        }
+        return super.allowCommand(unit, command);
     }
 
     @Override

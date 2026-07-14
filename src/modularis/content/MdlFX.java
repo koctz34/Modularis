@@ -16,7 +16,7 @@ import modularis.type.units.modules.*;
 public class MdlFX{
 
     public static Effect bloodPuddle, workerBuild, wheelDust, menderPulse, turboSmoke,
-        moduleDebrisFly, moduleDebrisRest, neoplasmLaserChargeSmall, shootFlame;
+        moduleDebrisFly, moduleDebrisRest, neoplasmLaserChargeSmall, shootFlame, drillSmoke;
 
     public static final float debrisLife = 60f * 120f;
     public static final float debrisFlyTime = 55f;
@@ -137,6 +137,22 @@ public class MdlFX{
             Draw.reset();
         });
         menderPulse.clip = 600f;
+
+        //grinding dust thrown up by a drill chewing into ore; e.color is the ore's colour
+        drillSmoke = new Effect(40f, e -> {
+            Fx.rand.setSeed(e.id);
+            Draw.color(e.color, Color.valueOf("4a423d"), e.fin());
+            Draw.alpha(0.55f * e.fout());
+            for(int i = 0; i < 3; i++){
+                float ang = Fx.rand.random(360f);
+                float dst = Fx.rand.random(1f, 7f) * e.fin();
+                float rx = e.x + Angles.trnsx(ang, dst);
+                //the dust drifts up as it settles
+                float ry = e.y + Angles.trnsy(ang, dst) + e.fin() * 3f;
+                Fill.circle(rx, ry, (1.3f + Fx.rand.random(1.8f)) * e.fout());
+            }
+            Draw.reset();
+        }).layer(Layer.debris);
 
         wheelDust = new Effect(34f, e -> {
             Fx.rand.setSeed(e.id);

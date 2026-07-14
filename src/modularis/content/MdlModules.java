@@ -27,9 +27,10 @@ public class MdlModules{
         // movement
         wheel, track, trackBig, trackGigant,
         // weapons
-        gun, discharger, cannon, sanguis, laculum, flamethrower, artillery, wolfRae, pointDefence, buildTower, repairTower,
+        gun, discharger, cannon, sanguis, laculum, flamethrower, artillery, pierceCannon, wolfRae, 
+        pointDefence, buildTower, repairTower, airborne,
         // abilities
-        mender, pulsus, turboHeater, compressor, reactiveArmorer, transformator, c4, shieldEmitter;
+        mender, pulsus, turboHeater, compressor, reactiveArmorer, transformator, reformator,c4, shieldEmitter, drill;
 
     public static void load(){
         if(!all.isEmpty()) return;
@@ -402,7 +403,7 @@ public class MdlModules{
                 shootSound = Sounds.shootFlame;
                 recoil = 0.2f;
                 ejectEffect = Fx.none;
-                bullet = new BulletType(4.2f, 32f){{
+                bullet = new BulletType(4.2f, 17f){{
                     hitSize = 12f;
                     lifetime = 13f;
                     statusDuration = 60f * 7;
@@ -417,8 +418,8 @@ public class MdlModules{
         }});
 
         artillery = add(new ModulTurret("artillery3x2"){{
-            localizedName = "Cannon";
-            description = "Has a lot of damage, but slow.";
+            localizedName = "Artillery";
+            description = "Heavy long-range artillery.";
             baseSprite = "base3x2";
             weight = 14f;
             health = 400f;
@@ -439,6 +440,77 @@ public class MdlModules{
                     height = 20f;
                     splashDamage = 400f;
                     splashDamageRadius = 100f;
+                }};
+            }};
+        }});
+
+        pierceCannon = add(new ModulTurret("pierce-cannon3x2"){{
+            localizedName = "Pierce Cannon";
+            description = "A massive tank gun that pierces through enemies.";
+            baseSprite = "base3x2";
+            weight = 15f;
+            health = 500f;
+            w = 2; h = 3;
+            powerUse = 5f;
+            slotCost = 4;
+            weapon = new Weapon("modularis-pierce-cannon3x2"){{
+                rotate = true;
+                reload = 180f;
+                inaccuracy = 1f;
+                rotateSpeed = 3f;
+                shootCone = 6f;
+                ejectEffect = Fx.casing3;
+                shootSound = Sounds.explosionDull;
+
+                bullet = new BasicBulletType(6f, 180){{
+                    sprite = "missile-large";
+                    width = 7.5f;
+                    height = 13f;
+                    lifetime = 32f;
+                    hitSize = 6f;
+                    pierceCap = 3;
+                    pierce = true;
+                    pierceBuilding = true;
+                    hitColor = backColor = trailColor = Color.valueOf("f68630");
+                    frontColor = Color.white;
+                    trailWidth = 2.8f;
+                    trailLength = 5;
+                    hitEffect = despawnEffect = Fx.blastExplosion;
+                    shootEffect = Fx.shootTitan;
+                    smokeEffect = Fx.shootSmokeTitan;
+                    splashDamageRadius = 10f;
+                    splashDamage = 40f;
+
+                    fragBullets = 3;
+
+                    fragBullet = new BasicBulletType(7f, 16){{
+                        sprite = "missile-large";
+                        width = 4f;
+                        height = 6f;
+                        lifetime = 6f;
+                        hitSize = 4f;
+                        hitColor = backColor = trailColor = Color.valueOf("feb380");
+                        frontColor = Color.white;
+                        trailWidth = 1.7f;
+                        trailLength = 3;
+                        drag = 0.01f;
+                        despawnEffect = hitEffect = Fx.hitBulletColor;
+                        fragBullets = 3;
+
+                        fragBullet = new BasicBulletType(4f, 6){{
+                            sprite = "missile-large";
+                            width = 3f;
+                            height = 5f;
+                            lifetime = 6f;
+                            hitSize = 3f;
+                            hitColor = backColor = trailColor = Color.valueOf("feb380");
+                            frontColor = Color.white;
+                            trailWidth = 1.7f;
+                            trailLength = 2;
+                            drag = 0.01f;
+                            despawnEffect = hitEffect = Fx.hitBulletColor;
+                        }};
+                    }};
                 }};
             }};
         }});
@@ -469,7 +541,7 @@ public class MdlModules{
                 cooldownTime = 300f;
 
                 bullet = new ContinuousLaserBulletType(){{
-                    damage = 50f;
+                    damage = 80f;
                     length = 200f;
                     hitEffect = Fx.hitMeltdown;
                     drawSize = 480f;
@@ -477,6 +549,7 @@ public class MdlModules{
                     shake = 3f;
                     despawnEffect = Fx.smokeCloud;
                     smokeEffect = Fx.none;
+                    status = StatusEffects.melting;
 
                     chargeEffect = MdlFX.neoplasmLaserChargeSmall;
 
@@ -561,6 +634,53 @@ public class MdlModules{
             }};
         }});
 
+        airborne = add(new ModulTurret("airborne4x4"){{
+            localizedName = "Airborne";
+            description = "Shoot a capsule containing 8 daggers.";
+            baseSprite = "base4x4";
+            weight = 40f;
+            health = 1200f;
+            w = 4; h = 4;
+            powerUse = 28f;
+            slotCost = 7;
+            weapon = new Weapon("modularis-airborne4x4"){{
+                rotate = true;
+                reload = 2000f;
+                inaccuracy = 2f;
+                rotateSpeed = 4f;
+                shootCone = 1f;
+                shootSound = Sounds.shootMissileLarge;
+                bullet = new ArtilleryBulletType(4f, 20f){{
+                    lifetime = 150f;
+
+                    sprite = "missile-large";
+                    width = 19f;
+                    height = 26f;
+                    collidesAir = false;
+                    collidesGround = false;
+
+                    splashDamage = 100f;
+                    splashDamageRadius = 50f;
+
+                    trailWidth = 6f;
+                    trailLength = 8;
+
+                    fragBullets = 8;
+
+                    fragBullet = new BasicBulletType(4f, 6){{
+                        sprite = "missile-large";
+                        width = 3f;
+                        height = 5f;
+                        lifetime = 6f;
+                        trailWidth = 1.7f;
+                        trailLength = 2;
+                        spawnUnit = UnitTypes.dagger;
+                        drag = 0.01f;
+                    }};
+                }};
+            }};
+        }});
+
         // ---- Abilities ----
         mender = add(new ModulPulsar("mender1x1"){{
             localizedName = "Mender";
@@ -602,6 +722,22 @@ public class MdlModules{
             shieldCooldown = 60f * 6f;
         }});
 
+        drill = add(new ModulDrill("drill2x3"){{
+            localizedName = "Drill";
+            description = "Grinds ore the machine drives over straight into its hold. "
+                + "Also lets the machine be ordered to mine, hauling ore back to the core.";
+            w = 3; h = 2;
+            weight = 4f;
+            health = 200f;
+            powerUse = 4f;
+            slotCost = 1;
+
+            tier = 4;
+            drillSpeed = 1f;
+            drillTime = 45f;
+            mineRange = 110f; 
+        }});
+
         compressor = add(new ModuleType("compressor1x1"){{
             localizedName = "Compressor";
             description = "Compresses the machine's systems: less weight, less health.";
@@ -640,6 +776,22 @@ public class MdlModules{
             weight = 1.5f;
             health = 120f;
             powerUse = 1f;
+        }});
+
+        reformator = add(new ModuleType("reformator2x2"){{
+            localizedName = "Reformator";
+            description = "Changes many of the machine's stats.";
+            category = ModuleCategory.ability;
+            slot = SlotType.ability;
+            slotCost = 2;
+            w = 2; h = 2;
+            reloadMultiplier = 0.8f;
+            damageMultiplier = 1.2f;
+            healthMultiplier = 0.8f;
+            speedMultiplier = 1.2f;
+            weight = 3f;
+            health = 200f;
+            powerUse = 3f;
         }});
 
         c4 = add(new ModulC4("c41x1"){{

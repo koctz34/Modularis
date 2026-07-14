@@ -11,7 +11,7 @@ author: "Ion - 7274"
 main: "modularis.MdlMod"
 
 #the mod description as seen in the mod dialog
-description: "Novae technologiae modulares."
+description: "Novae technologiae modulares. Build your own machines using blocks and modules, and customize it however you like."
 
 #the mod version
 version: 0.1

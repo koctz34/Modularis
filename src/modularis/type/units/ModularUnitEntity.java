@@ -12,6 +12,7 @@ import mindustry.entities.*;
 import mindustry.entities.abilities.*;
 import mindustry.entities.units.*;
 import mindustry.gen.*;
+import mindustry.type.*;
 
 import modularis.content.*;
 import modularis.type.units.modules.*;
@@ -43,6 +44,14 @@ public class ModularUnitEntity extends TankUnit{
     public int cargoCapacity;
 
     public final Seq<PulsarMount> pulsars = new Seq<>();
+    public final Seq<DrillMount> drills = new Seq<>();
+
+    /** Highest ore hardness this machine can cut. -1 = it carries no drill. */
+    public int drillTier = -1;
+    /** Summed drill speed. */
+    public float drillSpeed;
+    /** Longest drill reach, measured from the hull. */
+    public float drillRange;
 
     /** Sets the blueprint and derives dependent stats (max health, hitbox, weapon mounts). */
     public void setDesign(ModularDesign d){
@@ -92,6 +101,7 @@ public class ModularUnitEntity extends TankUnit{
 
     private void rebuildMounts(){
         pulsars.clear();
+        drills.clear();
         disposeMounts();
         mounts = new WeaponMount[0];
         abilities = new Ability[0];
@@ -120,6 +130,8 @@ public class ModularUnitEntity extends TankUnit{
 
                 Ability shield = p.createShield();
                 if(shield != null) abils.add(shield);
+            }else if(m.type instanceof ModulDrill d){
+                drills.add(new DrillMount(m, d));
             }
         }
 
@@ -148,6 +160,20 @@ public class ModularUnitEntity extends TankUnit{
 
         armor(s == null ? 0f : s.armor);
         cargoCapacity = s == null ? 0 : s.cargoCapacity;
+        drillTier = s == null ? -1 : s.drillTier;
+        drillSpeed = s == null ? 0f : s.drillSpeed;
+        drillRange = s == null ? 0f : s.drillRange;
+    }
+
+    @Override
+    public boolean canMine(){
+        //super still applies the game rules (unitMineSpeed etc.)
+        return drillTier >= 0 && drillSpeed > 0f && super.canMine();
+    }
+
+    @Override
+    public boolean canMine(Item item){
+        return item != null && drillTier >= item.hardness && canMine();
     }
 
     @Override
