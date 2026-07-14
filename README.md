@@ -1,4 +1,3 @@
-# Modularis
 ![Logo](assets/sprites/modularis.png)
 
 Per technologiam modularem nova spatia reperi.
