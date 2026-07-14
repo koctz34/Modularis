@@ -84,12 +84,12 @@ public class ModuleType{
     }
 
     public TextureRegion region(){
-        if(region == null) region = Core.atlas.find("modularis-" + name);
+        if(region == null && Core.atlas != null) region = Core.atlas.find("modularis-" + name);
         return region;
     }
 
     public TextureRegion cellRegion(){
-        if(cellRegion == null) cellRegion = Core.atlas.find("modularis-" + name + "-cell");
+        if(cellRegion == null && Core.atlas != null) cellRegion = Core.atlas.find("modularis-" + name + "-cell");
         return cellRegion;
     }
 

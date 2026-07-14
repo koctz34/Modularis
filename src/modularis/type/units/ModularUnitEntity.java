@@ -38,7 +38,8 @@ public class ModularUnitEntity extends TankUnit{
     /** How many modules have already been shed at damage thresholds. */
     public int shedCount;
 
-    public float weaponRange = -1f;
+    public float weaponRangeMin = -1f;
+    public float weaponRangeMax = -1f;
 
     /** Item capacity summed from this machine's cargo modules. */
     public int cargoCapacity;
@@ -121,10 +122,7 @@ public class ModularUnitEntity extends TankUnit{
                 float lx = (m.x + t.w / 2f - originX) * cell;
                 float ly = (m.y + t.h / 2f - originY) * cell;
                 WeaponMount wm = t.createMount(lx, ly);
-                if(wm != null){
-                    wm.rotation = rotation;
-                    weaponMounts.add(wm);
-                }
+                if(wm != null) weaponMounts.add(wm);
             }else if(m.type instanceof ModulPulsar p){
                 pulsars.add(new PulsarMount(m, p));
 
@@ -147,14 +145,21 @@ public class ModularUnitEntity extends TankUnit{
     }
 
     private void recomputeDerived(){
-        float r = 0f;
+        float min = Float.MAX_VALUE, max = 0f;
         if(design != null){
             for(PlacedModule m : design.modules){
                 if(!design.isActive(m)) continue;
-                if(m.type instanceof ModulTurret t) r = Math.max(r, t.range());
+                if(!(m.type instanceof ModulTurret t)) continue;
+
+                float r = t.range();
+                if(r <= 0f) continue;
+
+                min = Math.min(min, r);
+                max = Math.max(max, r);
             }
         }
-        weaponRange = r;
+        weaponRangeMin = min == Float.MAX_VALUE ? 0f : min;
+        weaponRangeMax = max;
 
         ModularPhysics.Stats s = design == null ? null : ModularPhysics.compute(design);
 
@@ -178,7 +183,7 @@ public class ModularUnitEntity extends TankUnit{
 
     @Override
     public float range(){
-        return weaponRange >= 0f ? weaponRange : super.range();
+        return weaponRangeMax >= 0f ? weaponRangeMax : super.range();
     }
 
     @Override
@@ -292,6 +297,24 @@ public class ModularUnitEntity extends TankUnit{
         shedCount = read.i();
     }
 
+    @Override
+    public void afterSync(){
+        if(design != null && !design.isEmpty()){
+            if(controller() != null) controller().unit(this);
+            return;
+        }
+        super.afterSync();
+    }
+
+    @Override
+    public void afterRead(){
+        if(design != null && !design.isEmpty()){
+            if(controller() != null) controller().unit(this);
+            return;
+        }
+        super.afterRead();
+    }
+
     // ---- network sync (full state) ----
 
     @Override
@@ -304,7 +327,17 @@ public class ModularUnitEntity extends TankUnit{
     @Override
     public void readSync(Reads read){
         super.readSync(read);
-        setDesign(ModularDesign.read(read.str()));
-        shedCount = read.i();
+        ModularDesign incoming = ModularDesign.read(read.str());
+        int incomingShed = read.i();
+
+        //rebuilding mounts resets WeaponMount state (rotation, reload, heat...). The design
+        //string is sent every sync tick, but only changes when modules are shed - so skip
+        //rebuild when nothing changed or client-side turrets spin forever.
+        String cur = design == null ? "" : design.serialize();
+        String next = incoming == null ? "" : incoming.serialize();
+        if(!cur.equals(next) || shedCount != incomingShed){
+            setDesign(incoming);
+            shedCount = incomingShed;
+        }
     }
 }

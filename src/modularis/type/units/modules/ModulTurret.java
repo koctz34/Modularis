@@ -10,7 +10,9 @@ import mindustry.gen.*;
 import mindustry.type.*;
 
 import modularis.type.units.*;
-    
+
+import static mindustry.Vars.*;
+
 public class ModulTurret extends ModuleType{
     /** The backing weapon. Set this in the content loader. */
     public Weapon weapon;
@@ -54,12 +56,11 @@ public class ModulTurret extends ModuleType{
         if(weapon.recoilTime < 0f) weapon.recoilTime = weapon.reload;
     }
 
-    /** Full setup, including sprite loading (needs a loaded atlas). */
     public void ensureWeapon(){
         ensureBullet();
         if(weaponReady || weapon == null) return;
         weaponReady = true;
-        weapon.load();
+        if(!headless) weapon.load();
     }
 
     public float range(){
@@ -81,7 +82,7 @@ public class ModulTurret extends ModuleType{
     }
 
     public TextureRegion baseRegion(){
-        if(baseRegion == null) baseRegion = Core.atlas.find("modularis-" + baseSprite);
+        if(baseRegion == null && Core.atlas != null) baseRegion = Core.atlas.find("modularis-" + baseSprite);
         return baseRegion;
     }
 

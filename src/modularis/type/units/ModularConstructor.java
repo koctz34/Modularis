@@ -51,11 +51,18 @@ public class ModularConstructor extends UnitBlock{
         public void buildConfiguration(Table table){
             table.button("Open Editor", Icon.pencil, () -> {
                 deselect();
-                ModularConstructorEditor.dialog.show(design, () -> configure(design.serialize()));
+
+                ModularDesign editing = design.copy();
+                ModularConstructorEditor.dialog.show(editing, () -> configure(editing.serialize()));
             }).size(220f, 50f).row();
 
             table.button("Create Machine", Icon.add, () -> configure(Boolean.TRUE))
                 .size(220f, 50f).disabled(b -> design.isEmpty());
+        }
+
+        @Override
+        public Object config(){
+            return design.serialize();
         }
 
         @Override

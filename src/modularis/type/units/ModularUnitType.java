@@ -34,6 +34,8 @@ public class ModularUnitType extends UnitType{
     /** Sprite pixels per grid cell (all module cells are 16x16). */
     public static final int spritePx = 16;
 
+    public static final float cellSize = spritePx / 4f;
+
     public static final float[] shedThresholds = {0.7f, 0.5f, 0.2f};
 
     private final Vec2 tmp = new Vec2();
@@ -74,8 +76,7 @@ public class ModularUnitType extends UnitType{
     }
 
     public static float cellWorld(){
-        TextureRegion r = MdlModules.basePanel.region();
-        return spritePx * (r != null && r.found() ? r.scl() : 0.25f);
+        return cellSize;
     }
 
     public static void assign(Unit unit, ModularDesign design){
@@ -96,10 +97,6 @@ public class ModularUnitType extends UnitType{
         super.update(unit);
         if(!(unit instanceof ModularUnitEntity e) || e.design == null) return;
 
-        if(e.weaponRange >= 0f){
-            range = maxRange = e.weaponRange;
-        }
-
         updateShedding(e);
 
         ModularPhysics.Stats stats = ModularPhysics.compute(e.design);
@@ -115,6 +112,13 @@ public class ModularUnitType extends UnitType{
         mineSpeed = Math.max(0f, e.drillSpeed);
         if(e.drillRange > 0f){
             mineRange = e.drillRange + unit.hitSize / 2f;
+        }
+
+        if(e.weaponRangeMax > 0f){
+            range = e.weaponRangeMin;
+            maxRange = e.weaponRangeMax;
+        }else{
+            range = maxRange = mineRange;
         }
 
         if(stats.isKamikaze() && !net.client()){
