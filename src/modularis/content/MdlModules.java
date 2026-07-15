@@ -21,16 +21,16 @@ public class MdlModules{
         // base / armour
         basePanel, baseLong, baseLong2, baseBig, baseLoong, baseLoong2, baseGigant, cargo,
         // control
-        root, rootMedium, rootBig, transmission, gunbridge,
+        root, rootMedium, rootBig, transmission, gunbridge, sandboxRoot,
         // power
         engine, engineMedium, engineBig,
         // movement
-        wheel, track, trackBig, trackGigant,
+        wheel, track, trackBig, trackGigant, hover,
         // weapons
         gun, discharger, cannon, sanguis, laculum, flamethrower, artillery, pierceCannon, wolfRae, 
         pointDefence, buildTower, repairTower, airborne,
         // abilities
-        mender, pulsus, turboHeater, compressor, reactiveArmorer, transformator, reformator,c4, shieldEmitter, drill;
+        mender, pulsus, turboHeater, overclocker, compressor, reactiveArmorer, transformator, reformator,c4, shieldEmitter, drill;
 
     public static void load(){
         if(!all.isEmpty()) return;
@@ -112,6 +112,7 @@ public class MdlModules{
             engineSlots = 2;
             abilitySlots = 1;
             armor = 1f;
+            weight = 1f;
             cargoCapacity = 10;
         }});
         rootMedium = add(new ModulRoot("main2x2"){{
@@ -119,7 +120,7 @@ public class MdlModules{
             description = "The brain of the machine. Every unit needs exactly one.";
             limit = 1;
             w = 2; h = 2;
-            weight = 2f;
+            weight = 3f;
             weaponSlots = 6;
             engineSlots = 4;
             abilitySlots = 2;
@@ -141,7 +142,7 @@ public class MdlModules{
         transmission = add(new ModulRoot("transmission1x3"){{
             localizedName = "Transmission";
             description = "Increases the maximum number of engines possible.";
-            limit = 2;
+            limit = 4;
             w = 3; h = 1;
             weaponSlots = 0;
             engineSlots = 3;
@@ -154,7 +155,7 @@ public class MdlModules{
         gunbridge = add(new ModulRoot("gunbridge2x2"){{
             localizedName = "Gun Bridge";
             description = "Increases the maximum number of weapons possible.";
-            limit = 3;
+            limit = 5;
             w = 2; h = 2;
             weaponSlots = 6;
             engineSlots = 0;
@@ -162,6 +163,17 @@ public class MdlModules{
             powerUse = 2f;
             slot = SlotType.ability;
             slotCost = 1;
+        }});
+
+        sandboxRoot = add(new ModulRoot("sandbox-main1x1"){{
+            localizedName = "Sandbox Command Core";
+            description = "Unlimited slots.";
+            weaponSlots = 9999;
+            engineSlots = 9999;
+            abilitySlots = 9999;
+            armor = 1f;
+            weight = 1f;
+            cargoCapacity = 10;
         }});
 
         // ---- Engines (power) ----
@@ -231,18 +243,29 @@ public class MdlModules{
             powerUse = 7f;
         }});
 
+        hover = add(new ModulHover("hover6x1"){{
+            localizedName = "Hover";
+            description = "Allows hovering over the ground, but has a weight limit.";
+            moveSpeed = 2.2f;
+            w = 1; h = 6;
+            haulWeight = 20f;
+            maxWeight = 150f;
+            rotateSpeed = 5f;
+            powerUse = 2.1f;
+        }});
+
         // ---- Weapons ----
         gun = add(new ModulTurret("gun1x1"){{
             localizedName = "Light Gun";
             description = "A rotating autocannon turret.";
             weapon = new Weapon("modularis-gun1x1"){{
                 rotate = true;
-                reload = 22f;
+                reload = 19f;
                 inaccuracy = 3f;
                 rotateSpeed = 8f;
                 shootCone = 14f;
                 shootSound = Sounds.shoot;
-                bullet = new BasicBulletType(4f, 14f){{
+                bullet = new BasicBulletType(4f, 19f){{
                     lifetime = 38f;
                     width = 7f;
                     height = 9f;
@@ -265,7 +288,7 @@ public class MdlModules{
                 shootCone = 23f;
                 shootSound = Sounds.shootArc;
                 bullet = new LightningBulletType(){{
-                    damage = 12;
+                    damage = 14;
                     lightningLength = 19;
                     collidesAir = true;
     
@@ -479,11 +502,11 @@ public class MdlModules{
                     shootEffect = Fx.shootTitan;
                     smokeEffect = Fx.shootSmokeTitan;
                     splashDamageRadius = 10f;
-                    splashDamage = 40f;
+                    splashDamage = 170f;
 
                     fragBullets = 3;
 
-                    fragBullet = new BasicBulletType(7f, 16){{
+                    fragBullet = new BasicBulletType(7f, 34){{
                         sprite = "missile-large";
                         width = 4f;
                         height = 6f;
@@ -497,7 +520,7 @@ public class MdlModules{
                         despawnEffect = hitEffect = Fx.hitBulletColor;
                         fragBullets = 3;
 
-                        fragBullet = new BasicBulletType(4f, 6){{
+                        fragBullet = new BasicBulletType(4f, 22){{
                             sprite = "missile-large";
                             width = 3f;
                             height = 5f;
@@ -687,7 +710,7 @@ public class MdlModules{
             description = "Repair emitter. Periodically pulses to heal nearby allied units.";
             reload = 200f;
             pulseRange = 100f;
-            healAmount = 55f;
+            healAmount = 100f;
             powerUse = 2f;
         }});
 
@@ -783,7 +806,7 @@ public class MdlModules{
             description = "Changes many of the machine's stats.";
             category = ModuleCategory.ability;
             slot = SlotType.ability;
-            slotCost = 2;
+            slotCost = 1;
             w = 2; h = 2;
             reloadMultiplier = 0.8f;
             damageMultiplier = 1.2f;
@@ -814,6 +837,23 @@ public class MdlModules{
             slotCost = 2;
             w = 2; h = 2;
             speedMultiplier = 2f;
+            weight = 3f;
+            health = 130f;
+            powerUse = 2.5f;
+
+            ambientEffect = MdlFX.turboSmoke;
+            ambientChance = 0.1f;
+            ambientColor = Color.valueOf("9a8f86");
+        }});
+
+        overclocker = add(new ModuleType("overclocker2x2"){{
+            localizedName = "Overclocker";
+            description = "Overdrives the turrets fire rate.";
+            category = ModuleCategory.ability;
+            slot = SlotType.ability;
+            slotCost = 2;
+            w = 2; h = 2;
+            reloadMultiplier = 1.3f;
             weight = 3f;
             health = 130f;
             powerUse = 2.5f;

@@ -210,6 +210,14 @@ public class ModularConstructorEditor extends BaseDialog{
                 .append(Strings.autoFixed(s.balancePercent(), 0)).append("%[]\n");
         }
 
+        //hover lift limit
+        if(s.hasHover){
+            String hcol = s.hoverOverweight ? "[scarlet]" : "[cyan]";
+            sb.append("Hover lift: ").append(hcol)
+                .append(Strings.autoFixed(s.weight, 0)).append('/')
+                .append(Strings.autoFixed(s.hoverMaxWeight, 0)).append("[]\n");
+        }
+
         //C4 / kamikaze
         if(s.isKamikaze()){
             sb.append("[scarlet]KAMIKAZE[] (").append(s.c4Count).append(" C4)\n");
@@ -244,6 +252,7 @@ public class ModularConstructorEditor extends BaseDialog{
         if(s.underpowered) sb.append("[orange]! Underpowered[]\n");
         if(s.overloaded) sb.append("[orange]! Overloaded - too heavy for its drivetrain[]\n");
         if(s.unbalanced) sb.append("[orange]! Unbalanced - mass is not over the drive parts[]\n");
+        if(s.hoverOverweight) sb.append("[scarlet]! Too heavy to hover - it lies grounded[]\n");
         if(s.inactiveCount > 0){
             sb.append("[scarlet]! ").append(s.inactiveCount)
                 .append(" module(s) have no slot - dead weight[]\n");

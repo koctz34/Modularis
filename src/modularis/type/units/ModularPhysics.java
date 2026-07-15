@@ -43,6 +43,8 @@ public class ModularPhysics{
     public static final float heavyWeight = 55f;
     /** Top-speed fraction a very heavy machine is limited to. */
     public static final float minWeightSpeed = 0.18f;
+    /** Fraction of the weight speed penalty that still applies to hovering machines. */
+    public static final float hoverWeightRelief = 0.5f;
 
     // ---- capacity -> load ----
     /** How sharply mobility drops once weight exceeds drive capacity. */
@@ -123,6 +125,11 @@ public class ModularPhysics{
                 driveSum += w.moveSpeed * haul;
                 driveX += mcx * haul;
                 driveY += mcy * haul;
+
+                if(w instanceof ModulHover h){
+                    s.hasHover = true;
+                    s.hoverMaxWeight = Math.max(s.hoverMaxWeight, h.maxWeight);
+                }
             }else if(t instanceof ModulC4 c4){
                 //more charges = more damage, and a bigger (but sub-linear) blast
                 s.c4Count++;
@@ -184,19 +191,37 @@ public class ModularPhysics{
         float wt = Mathf.clamp((s.weight - lightWeight) / (heavyWeight - lightWeight), 0f, 1f);
         s.weightFactor = Mathf.lerp(1f, minWeightSpeed, wt);
 
+        if(s.hasHover){
+            s.weightFactor = 1f - (1f - s.weightFactor) * hoverWeightRelief;
+        }
+
         s.speedRating = s.topRating * s.loadFactor * s.weightFactor * s.balanceFactor
             * s.powerRatio * s.speedMod;
 
         s.overloaded = s.capacity > 0f && s.weight > s.capacity;
         s.underpowered = s.powerRatio < 0.999f;
         s.unbalanced = s.hasWheels && s.balanceFactor < 0.95f;
-        s.immobile = !s.hasRoot || !s.hasWheels || s.speedRating < 0.02f;
+
+        s.hoverOverweight = s.hasHover && s.weight > s.hoverMaxWeight;
+        s.immobile = !s.hasRoot || !s.hasWheels || s.speedRating < 0.02f || s.hoverOverweight;
         return s;
     }
 
     /** Computed movement stats for a design. */
     public static class Stats{
         public boolean hasRoot, hasWheels, overloaded, underpowered, unbalanced, immobile;
+        /** Has hover. */
+        public boolean hasHover;
+        /** Weight limit of the strongest hover. */
+        public float hoverMaxWeight;
+        /** True if hovers are present but the machine is too heavy to lift. */
+        public boolean hoverOverweight;
+
+        /** True when the machine actually floats: has a hover and is within its lift limit. */
+        public boolean hovering(){
+            return hasHover && !hoverOverweight;
+        }
+
         public int wheelCount;
         /** Modules bolted on but with no slot to run in: dead weight, no function. */
         public int inactiveCount;
