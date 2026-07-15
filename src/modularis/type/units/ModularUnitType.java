@@ -59,6 +59,9 @@ public class ModularUnitType extends UnitType{
         hitSize = 18f;
         armor = 3f;
 
+        canDrown = true;
+        shadowElevation = 0f;
+
         buildSpeed = 1f;
         drawBuildBeam = false;
 
@@ -68,7 +71,7 @@ public class ModularUnitType extends UnitType{
         mineWalls = false;
         drawItems = true;
         drawCell = false;
-        drawItems = false;
+        drawItems = true;
         outlines = false;         //we draw our own composite outline
         generateFullIcon = false;
         engineSize = 0f;
@@ -79,6 +82,15 @@ public class ModularUnitType extends UnitType{
 
     public static float cellWorld(){
         return cellSize;
+    }
+
+    public void applyMovementMode(ModularUnitEntity e){
+        boolean hov = e.hovering;
+        hovering = hov;
+        omniMovement = hov;
+        canDrown = !hov;
+        shadowElevation = hov ? 0.1f : 0f;
+        drag = hov ? 0.07f : 0.12f;
     }
 
     public static void assign(Unit unit, ModularDesign design){
@@ -103,8 +115,14 @@ public class ModularUnitType extends UnitType{
 
         ModularPhysics.Stats stats = ModularPhysics.compute(e.design);
         unit.speedMultiplier(stats.speedMultiplier());
-        unit.dragMultiplier(stats.dragMultiplier());
         unit.damageMultiplier(stats.damageMultiplier);
+
+        float dragMul = stats.dragMultiplier();
+        if(e.hovering && e.isGrounded()){
+            float floorDrag = e.floorOn().dragMultiplier;
+            if(floorDrag > 0.0001f) dragMul /= floorDrag;
+        }
+        unit.dragMultiplier(dragMul);
 
         unit.disarmed(!stats.canShoot());
         unit.reloadMultiplier(Math.max(stats.fireRateMultiplier(), 0.05f));
@@ -196,7 +214,7 @@ public class ModularUnitType extends UnitType{
     private void emitWheelDust(Unit unit, ModularDesign design, float cell, float cx, float cy, float rot, float moveFrac){
         float chance = Mathf.clamp(moveFrac * 0.5f);
         for(PlacedModule m : design.modules){
-            if(!(m.type instanceof ModulWheel)) continue;
+            if(!(m.type instanceof ModulWheel) || m.type instanceof ModulHover) continue;
             if(!Mathf.chanceDelta(chance)) continue;
             dustPos(unit, m, cell, cx, cy, rot, tmp);
             MdlFX.wheelDust.at(tmp.x, tmp.y, unit.rotation);
@@ -218,6 +236,11 @@ public class ModularUnitType extends UnitType{
         float cy = unit instanceof ModularUnitEntity e ? e.originY : design.centerY();
 
         drawShadow(unit, design, cell, cx, cy);
+
+        if(unit instanceof ModularUnitEntity he && he.hovering){
+            Draw.z(Layer.groundUnit - 0.02f);
+            drawHoverRings(he, design, cell, cx, cy);
+        }
 
         Draw.z(Layer.groundUnit - 0.01f);
         drawOutline(unit, design, cell, cx, cy);
@@ -263,6 +286,22 @@ public class ModularUnitType extends UnitType{
         }
     }
 
+    private void drawHoverRings(ModularUnitEntity e, ModularDesign design, float cell, float cx, float cy){
+        float rot = e.rotation - 90f;
+        for(PlacedModule m : design.modules){
+            if(!(m.type instanceof ModulHover h) || !design.isActive(m)) continue;
+
+            worldPos(e, m, cell, cx, cy, rot, tmp);
+            Draw.color(h.ringColor);
+            for(int c = 0; c < h.ringCircles; c++){
+                float fin = (Time.time / h.ringPhase + (float)c / h.ringCircles) % 1f;
+                Lines.stroke((1f - fin) * h.ringStroke + h.ringMinStroke);
+                Lines.poly(tmp.x, tmp.y, h.ringSides, h.ringRadius * fin, e.rotation);
+            }
+        }
+        Draw.reset();
+    }
+
     private void drawTurretOutlines(Unit unit){
         WeaponMount[] ms = unit.mounts;
         if(ms == null || ms.length == 0) return;
@@ -290,13 +329,16 @@ public class ModularUnitType extends UnitType{
     }
 
     private void drawShadow(Unit unit, ModularDesign design, float cell, float cx, float cy){
+        boolean hover = unit instanceof ModularUnitEntity he && he.hovering;
+        float off = hover ? 5f : 2f;
+
         Draw.z(Layer.groundUnit - 0.5f);
-        Draw.color(0f, 0f, 0f, 0.22f);
+        Draw.color(0f, 0f, 0f, hover ? 0.16f : 0.22f);
         float rot = unit.rotation - 90f;
         for(PlacedModule m : design.modules){
             worldPos(unit, m, cell, cx, cy, rot, tmp);
             float dw = m.type.w * cell, dh = m.type.h * cell;
-            Draw.rect(m.type.bodyRegion(), tmp.x + 2f, tmp.y - 2f, dw, dh, rot);
+            Draw.rect(m.type.bodyRegion(), tmp.x + off, tmp.y - off, dw, dh, rot);
         }
         Draw.reset();
     }

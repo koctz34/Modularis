@@ -26,6 +26,12 @@ public class MdlMod extends Mod{
             netServer.addPacketHandler(CargoInteraction.packetName, CargoInteraction::handle);
         });
 
+        Events.run(Trigger.afterGameUpdate, () -> {
+            if(player != null && player.unit() instanceof ModularUnitEntity e && e.type instanceof ModularUnitType mt){
+                mt.omniMovement = e.hovering;
+            }
+        });
+
     }
 
     @Override

@@ -44,6 +44,11 @@ public class ModularUnitEntity extends TankUnit{
     /** Item capacity summed from this machine's cargo modules. */
     public int cargoCapacity;
 
+    /** True if any hover module is aboard. */
+    public boolean hasHover;
+    /** True when the machine actually floats (has a hover and is within its lift limit). */
+    public boolean hovering;
+
     public final Seq<PulsarMount> pulsars = new Seq<>();
     public final Seq<DrillMount> drills = new Seq<>();
     public final Seq<CargoMount> cargoMounts = new Seq<>();
@@ -181,6 +186,8 @@ public class ModularUnitEntity extends TankUnit{
         drillTier = s == null ? -1 : s.drillTier;
         drillSpeed = s == null ? 0f : s.drillSpeed;
         drillRange = s == null ? 0f : s.drillRange;
+        hasHover = s != null && s.hasHover;
+        hovering = s != null && s.hovering();
     }
 
     @Override
@@ -192,6 +199,14 @@ public class ModularUnitEntity extends TankUnit{
     @Override
     public boolean canMine(Item item){
         return item != null && drillTier >= item.hardness && canMine();
+    }
+
+    @Override
+    public void update(){
+        if(design != null && type instanceof ModularUnitType mt){
+            mt.applyMovementMode(this);
+        }
+        super.update();
     }
 
     @Override
