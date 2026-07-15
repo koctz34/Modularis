@@ -327,7 +327,7 @@ public class MdlModules{
                 shootSound = Sounds.shootSap;
 
                 bullet = new SapBulletType(){{
-                    sapStrength = 1f;
+                    sapStrength = 0.8f;
                     length = 40f;
                     damage = 18;
                     shootEffect = Fx.shootSmall;
@@ -371,7 +371,7 @@ public class MdlModules{
                     height = 8f;
                     lifetime = 60f;
                     splashDamageRadius = 30f;
-                    splashDamage = 30f * 1.5f;
+                    splashDamage = 30f;
                     trailLength = 3;
                     trailWidth = 0.5f;
                     hitEffect = Fx.blastExplosion;
@@ -439,7 +439,7 @@ public class MdlModules{
                     width = 18f;
                     height = 20f;
                     splashDamage = 400f;
-                    splashDamageRadius = 100f;
+                    splashDamageRadius = 70f;
                 }};
             }};
         }});
