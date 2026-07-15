@@ -69,9 +69,7 @@ public class ModularUnitType extends UnitType{
         mineSpeed = 1f;
         mineFloor = true;
         mineWalls = false;
-        drawItems = true;
         drawCell = false;
-        drawItems = true;
         outlines = false;         //we draw our own composite outline
         generateFullIcon = false;
         engineSize = 0f;
