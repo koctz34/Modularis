@@ -5,6 +5,7 @@ import arc.graphics.*;
 import arc.graphics.g2d.*;
 import arc.math.*;
 import arc.math.geom.*;
+import arc.scene.ui.layout.*;
 import arc.struct.*;
 import arc.util.*;
 import mindustry.ai.*;
@@ -16,6 +17,7 @@ import mindustry.entities.units.*;
 import mindustry.gen.*;
 import mindustry.graphics.*;
 import mindustry.type.*;
+import mindustry.ui.*;
 
 import modularis.content.*;
 import modularis.type.units.modules.*;
@@ -231,7 +233,34 @@ public class ModularUnitType extends UnitType{
         Draw.z(Layer.groundUnit + 0.02f);
         drawWeapons(unit);
 
+        Draw.z(Layer.groundUnit + 0.03f);
+        drawCargoItems(unit, cell, cx, cy);
+
         Draw.reset();
+    }
+
+    void drawCargoItems(Unit unit, float cell, float centerX, float centerY){
+        if(!(unit instanceof ModularUnitEntity modular)) return;
+        float rotation = unit.rotation - 90f;
+        for(CargoMount cargo : modular.cargoMounts){
+            cargo.updateVisual();
+            Item item = cargo.visualItem;
+            if(item == null || cargo.itemTime <= 0.01f) continue;
+            worldPos(unit, cargo.placed, cell, centerX, centerY, rotation, tmp);
+            float sin = Mathf.absin(Time.time, 5f, 1f);
+            float size = (itemSize + sin) * cargo.itemTime;
+            Draw.mixcol(Pal.accent, sin * 0.1f);
+            Draw.rect(item.fullIcon, tmp.x, tmp.y, size, size, unit.rotation);
+            Draw.mixcol();
+            Draw.color(Pal.accent);
+            float circleSize = ((3f + sin) * cargo.itemTime + 0.5f) * 2f;
+            Draw.rect(itemCircleRegion, tmp.x, tmp.y, circleSize, circleSize);
+            if(cargo.displayItem() != null && unit.isLocal() && !renderer.pixelate){
+                Fonts.outline.draw(cargo.items.get(item) + "", tmp.x, tmp.y - 3f, Pal.accent,
+                    0.25f * cargo.itemTime / Scl.scl(1f), false, Align.center);
+            }
+            Draw.reset();
+        }
     }
 
     private void drawTurretOutlines(Unit unit){
