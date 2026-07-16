@@ -14,7 +14,7 @@ main: "modularis.MdlMod"
 description: "Novae technologiae modulares. Build your own machines using blocks and modules, and customize it however you like."
 
 #the mod version
-version: 0.2
+version: 0.3
 
 #the minimum game build required to run this mod
 minGameVersion: 158
