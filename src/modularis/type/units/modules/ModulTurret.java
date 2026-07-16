@@ -92,6 +92,11 @@ public class ModulTurret extends ModuleType{
     }
 
     @Override
+    public String bodySpriteName(){
+        return baseSprite;
+    }
+
+    @Override
     public void drawTop(Unit unit, PlacedModule placed, float x, float y, float w, float h, float rotation){
         //A turret with no free slot gets no WeaponMount, so the Weapon system never draws its
         //barrel. Draw a dead one here, locked to the hull and greyed out, so it reads as

@@ -31,6 +31,9 @@ public class ModularUnitEntity extends TankUnit{
     /** Network/save class id, assigned at registration time. */
     public static int classID = -1;
 
+    /** Separates the serialized design from per-cargo inventory data. Must not appear in designs. */
+    private static final char cargoDelim = '\u001f';
+
     public ModularDesign design;
 
     public float originX, originY;
@@ -62,8 +65,17 @@ public class ModularUnitEntity extends TankUnit{
 
     /** Sets the blueprint and derives dependent stats (max health, hitbox, weapon mounts). */
     public void setDesign(ModularDesign d){
+        applyDesign(d, true);
+    }
+
+    void applyDesignState(ModularDesign d, int shed){
+        applyDesign(d, false);
+        shedCount = shed;
+    }
+
+    private void applyDesign(ModularDesign d, boolean resetShed){
         design = d == null ? null : d.copy();
-        shedCount = 0;
+        if(resetShed) shedCount = 0;
 
         if(design != null && !design.isEmpty()){
             originX = design.centerX();
@@ -185,7 +197,7 @@ public class ModularUnitEntity extends TankUnit{
         cargoCapacity = s == null ? 0 : s.cargoCapacity;
         drillTier = s == null ? -1 : s.drillTier;
         drillSpeed = s == null ? 0f : s.drillSpeed;
-        drillRange = s == null ? 0f : s.drillRange;
+        drillRange = 1f;
         hasHover = s != null && s.hasHover;
         hovering = s != null && s.hovering();
     }
@@ -291,7 +303,7 @@ public class ModularUnitEntity extends TankUnit{
 
     String stateData(){
         StringBuilder result = new StringBuilder(design == null ? "" : design.serialize());
-        result.append('#');
+        result.append(cargoDelim);
         boolean[] firstCargo = {true};
         for(CargoMount cargo : cargoMounts){
             if(!firstCargo[0]) result.append('|');
@@ -308,8 +320,21 @@ public class ModularUnitEntity extends TankUnit{
     }
 
     String designData(String stateData){
-        int split = stateData.indexOf('#');
+        int split = cargoSplitIndex(stateData);
         return split < 0 ? stateData : stateData.substring(0, split);
+    }
+
+    static int cargoSplitIndex(String stateData){
+        if(stateData == null || stateData.isEmpty()) return -1;
+
+        int delim = stateData.indexOf(cargoDelim);
+        if(delim >= 0) return delim;
+
+        if(stateData.charAt(0) == '#'){
+            int last = stateData.lastIndexOf('#');
+            return last > 0 ? last : -1;
+        }
+        return stateData.indexOf('#');
     }
 
     void readCargoData(String stateData){
@@ -317,7 +342,7 @@ public class ModularUnitEntity extends TankUnit{
             cargo.items.clear();
             cargo.lastItem = null;
         }
-        int split = stateData.indexOf('#');
+        int split = cargoSplitIndex(stateData);
         if(split < 0 || split + 1 >= stateData.length()) return;
         for(String entry : stateData.substring(split + 1).split("\\|")){
             String[] header = entry.split(":", 2);
@@ -443,14 +468,14 @@ public class ModularUnitEntity extends TankUnit{
     public void read(Reads read){
         super.read(read);
         String stateData = read.str();
-        setDesign(ModularDesign.read(designData(stateData)));
+        applyDesignState(ModularDesign.read(designData(stateData)), read.i());
         readCargoData(stateData);
-        shedCount = read.i();
     }
 
     @Override
     public void afterSync(){
         if(design != null && !design.isEmpty()){
+            if(mounts == null || mounts.length == 0) rebuildMounts();
             if(controller() != null) controller().unit(this);
             return;
         }
@@ -460,6 +485,7 @@ public class ModularUnitEntity extends TankUnit{
     @Override
     public void afterRead(){
         if(design != null && !design.isEmpty()){
+            if(mounts == null || mounts.length == 0) rebuildMounts();
             if(controller() != null) controller().unit(this);
             return;
         }
@@ -488,8 +514,7 @@ public class ModularUnitEntity extends TankUnit{
         String cur = design == null ? "" : design.serialize();
         String next = incoming == null ? "" : incoming.serialize();
         if(!cur.equals(next) || shedCount != incomingShed){
-            setDesign(incoming);
-            shedCount = incomingShed;
+            applyDesignState(incoming, incomingShed);
         }
         readCargoData(incomingState);
     }

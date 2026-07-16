@@ -9,7 +9,7 @@ import arc.util.*;
 import mindustry.entities.*;
 import mindustry.game.*;
 import mindustry.gen.*;
-
+import mindustry.graphics.Layer;
 import modularis.type.units.*;
 
 public class ModuleType{
@@ -76,7 +76,9 @@ public class ModuleType{
     /** Colour handed to the effect. */
     public Color ambientColor = Color.white;
 
-    protected TextureRegion region, cellRegion;
+    protected TextureRegion region, cellRegion, topRegion;
+    /** Cumulative tone masks, darkest first. Resolved together, so null = not looked up yet. */
+    protected TextureRegion[] paintRegions;
 
     public ModuleType(String name){
         this.name = name;
@@ -88,6 +90,11 @@ public class ModuleType{
         return region;
     }
 
+    public TextureRegion topRegion(){
+        if(topRegion == null && Core.atlas != null) topRegion = Core.atlas.find("modularis-" + name + "-top");
+        return topRegion;
+    }
+
     public TextureRegion cellRegion(){
         if(cellRegion == null && Core.atlas != null) cellRegion = Core.atlas.find("modularis-" + name + "-cell");
         return cellRegion;
@@ -95,6 +102,26 @@ public class ModuleType{
 
     public TextureRegion bodyRegion(){
         return region();
+    }
+
+    public String bodySpriteName(){
+        return name;
+    }
+
+    public TextureRegion paintRegion(int tone){
+        if(paintRegions == null){
+            if(Core.atlas == null) return null;
+            String base = "modularis-" + bodySpriteName() + "-paint";
+            paintRegions = new TextureRegion[]{
+                Core.atlas.find(base + "0"), Core.atlas.find(base + "1"), Core.atlas.find(base + "2")
+            };
+        }
+        return paintRegions[tone];
+    }
+
+    public boolean paintable(){
+        TextureRegion r = paintRegion(0);
+        return r != null && r.found();
     }
 
     public int cells(){
@@ -107,7 +134,21 @@ public class ModuleType{
         Draw.rect(bodyRegion(), x, y, w, h, rotation);
     }
 
+    public void drawPaint(@Nullable Unit unit, PlacedModule placed, float x, float y, float w, float h, float rotation, Color tint){
+        if(tint.equals(Color.white) || !paintable()) return;
+
+        PaintRamp ramp = PaintRamp.of(tint);
+        for(int tone = 0; tone < 3; tone++){
+            TextureRegion r = paintRegion(tone);
+            if(r == null || !r.found()) continue;
+            Draw.color(ramp.tone(tone));
+            Draw.rect(r, x, y, w, h, rotation);
+        }
+        Draw.color();
+    }
+
     public void drawTop(@Nullable Unit unit, PlacedModule placed, float x, float y, float w, float h, float rotation){
+        if(topRegion != null) Draw.rect(topRegion(), x, y, w, h, rotation);
     }
 
     protected Color teamColor(@Nullable Unit unit){

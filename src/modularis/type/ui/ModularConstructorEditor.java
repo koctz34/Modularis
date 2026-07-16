@@ -21,6 +21,8 @@ import modularis.content.*;
 import modularis.type.units.*;
 import modularis.type.units.modules.*;
 
+import static mindustry.Vars.*;
+
 public class ModularConstructorEditor extends BaseDialog{
     /** Shared instance. */
     public static final ModularConstructorEditor dialog = new ModularConstructorEditor();
@@ -100,6 +102,11 @@ public class ModularConstructorEditor extends BaseDialog{
         buttons.clearChildren();
         buttons.button("Back", Icon.left, this::hide).size(160f, 55f);
         buttons.button("Clear", Icon.trash, () -> design.clear()).size(160f, 55f);
+
+        buttons.button("Color", Icon.pencil, () -> {
+            ModularDesign target = design;
+            ui.picker.show(target.color, false, c -> target.color.set(c));
+        }).size(160f, 55f);
     }
 
     private void buildList(Table list){
@@ -453,7 +460,9 @@ public class ModularConstructorEditor extends BaseDialog{
                 float sx = screenX(m.x + m.type.w / 2f);
                 float sy = screenY(m.y + m.type.h / 2f);
                 float w = m.type.w * cp, h = m.type.h * cp;
+                
                 m.type.drawBody(null, m, sx, sy, w, h, 0f);
+                m.type.drawPaint(null, m, sx, sy, w, h, 0f, design.color);
             }
             for(PlacedModule m : design.modules){
                 float sx = screenX(m.x + m.type.w / 2f);

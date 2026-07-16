@@ -1,5 +1,6 @@
 package modularis.type.units;
 
+import arc.graphics.*;
 import arc.struct.*;
 import arc.util.*;
 
@@ -8,6 +9,8 @@ import modularis.type.units.modules.*;
 
 public class ModularDesign{
     public final Seq<PlacedModule> modules = new Seq<>();
+
+    public final Color color = Color.white.cpy();
 
     public boolean isEmpty(){
         return modules.isEmpty();
@@ -129,12 +132,14 @@ public class ModularDesign{
     public ModularDesign copy(){
         ModularDesign out = new ModularDesign();
         for(PlacedModule m : modules) out.modules.add(m.copy());
+        out.color.set(color);
         return out;
     }
 
     public void set(ModularDesign other){
         modules.clear();
         for(PlacedModule m : other.modules) modules.add(m.copy());
+        color.set(other.color);
     }
 
     // ---- bounds (in cells) ----
@@ -224,10 +229,9 @@ public class ModularDesign{
     }
 
     // ---- serialization ----
-
-    /** Compact string form: {@code name:x:y;name:x:y;...} */
     public String serialize(){
         StringBuilder sb = new StringBuilder();
+        sb.append('#').append(color.toString()).append(';');
         for(PlacedModule m : modules){
             sb.append(m.type.name).append(':').append(m.x).append(':').append(m.y).append(';');
         }
@@ -239,6 +243,15 @@ public class ModularDesign{
         if(data == null || data.isEmpty()) return out;
         for(String part : data.split(";")){
             if(part.isEmpty()) continue;
+
+            //paint job
+            if(part.charAt(0) == '#'){
+                try{
+                    out.color.set(Color.valueOf(part.substring(1)));
+                }catch(Exception ignored){}
+                continue;
+            }
+
             String[] f = part.split(":");
             if(f.length != 3) continue;
             ModuleType type = MdlModules.byName(f[0]);

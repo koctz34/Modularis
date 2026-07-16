@@ -39,7 +39,7 @@ public class MdlFX{
         loaded = true;
 
         shootFlame = new Effect(32f, 90f, e -> {
-            Draw.color(Pal.lightFlame, Pal.darkFlame, Color.valueOf("55555500"), e.fin());
+            Draw.color(Pal.lightFlame, Pal.darkFlame, Color.valueOf("555555"), e.fin());
     
             Angles.randLenVectors(e.id, 12, e.finpow() * 60f, e.rotation, 14f, (x, y) -> {
                 Fill.circle(e.x + x, e.y + y, 0.65f + e.fout() * 1.5f);
@@ -47,7 +47,7 @@ public class MdlFX{
         }).followParent(false);
 
         icbmFlame = new Effect(23f, 90f, e -> {
-            Draw.color(Pal.lightFlame, Pal.darkFlame, Color.valueOf("55555500"), e.fin());
+            Draw.color(Pal.lightFlame, Pal.darkFlame, Color.valueOf("555555"), e.fin());
 
             Fill.circle(e.x, e.y, 0.3f + e.fout() * 1.5f);
         }).followParent(false);

@@ -365,6 +365,24 @@ public class ModularUnitType extends UnitType{
             m.type.drawBody(unit, m, tmp.x, tmp.y, dw, dh, rot);
         }
         Draw.reset();
+
+        if(design.color.equals(Color.white)) return;
+
+        //whole machine rather than one per module.
+        PaintRamp ramp = PaintRamp.of(design.color);
+        for(int tone = 0; tone < 3; tone++){
+            Draw.z(Layer.groundUnit + 0.002f * (tone + 1));
+            Draw.color(ramp.tone(tone));
+
+            for(PlacedModule m : design.modules){
+                TextureRegion region = m.type.paintRegion(tone);
+                if(region == null || !region.found()) continue;
+
+                worldPos(unit, m, cell, cx, cy, rot, tmp);
+                Draw.rect(region, tmp.x, tmp.y, m.type.w * cell, m.type.h * cell, rot);
+            }
+        }
+        Draw.reset();
     }
 
     private void drawTops(Unit unit, ModularDesign design, float cell, float cx, float cy){
