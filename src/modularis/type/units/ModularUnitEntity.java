@@ -51,6 +51,7 @@ public class ModularUnitEntity extends TankUnit{
 
     public final Seq<PulsarMount> pulsars = new Seq<>();
     public final Seq<DrillMount> drills = new Seq<>();
+    public final Seq<CargoMount> cargoMounts = new Seq<>();
 
     /** Highest ore hardness this machine can cut. -1 = it carries no drill. */
     public int drillTier = -1;
@@ -106,8 +107,11 @@ public class ModularUnitEntity extends TankUnit{
     }
 
     private void rebuildMounts(){
+        ObjectMap<String, CargoMount> previousCargos = new ObjectMap<>();
+        for(CargoMount cargo : cargoMounts) previousCargos.put(cargoKey(cargo.placed), cargo);
         pulsars.clear();
         drills.clear();
+        cargoMounts.clear();
         disposeMounts();
         mounts = new WeaponMount[0];
         abilities = new Ability[0];
@@ -135,6 +139,15 @@ public class ModularUnitEntity extends TankUnit{
                 if(shield != null) abils.add(shield);
             }else if(m.type instanceof ModulDrill d){
                 drills.add(new DrillMount(m, d));
+            }
+            if(m.type.cargoCapacity > 0){
+                CargoMount cargo = new CargoMount(m);
+                CargoMount previous = previousCargos.get(cargoKey(m));
+                if(previous != null){
+                    cargo.items.set(previous.items);
+                    cargo.lastItem = previous.lastItem;
+                }
+                cargoMounts.add(cargo);
             }
         }
 
@@ -204,6 +217,127 @@ public class ModularUnitEntity extends TankUnit{
     @Override
     public int itemCapacity(){
         return Math.max(cargoCapacity, 0);
+    }
+
+    @Override
+    public int maxAccepted(Item item){
+        if(item == null) return 0;
+        int accepted = 0;
+        for(CargoMount cargo : cargoMounts){
+            accepted += cargo.accept(item, Integer.MAX_VALUE);
+        }
+        return accepted;
+    }
+
+    @Override
+    public boolean acceptsItem(Item item){
+        return maxAccepted(item) > 0;
+    }
+
+    @Override
+    public void addItem(Item item, int amount){
+        if(item == null || amount <= 0) return;
+
+        for(CargoMount cargo : cargoMounts){
+            int accepted = cargo.accept(item, amount);
+            if(accepted <= 0) continue;
+            cargo.add(item, accepted);
+            amount -= accepted;
+            if(amount <= 0) return;
+        }
+    }
+
+    @Override
+    public void clearItem(){
+        stack.amount = 0;
+    }
+
+    public int removeCargo(Item item, int amount){
+        if(item == null || amount <= 0) return 0;
+        int removed = 0;
+        for(CargoMount cargo : cargoMounts){
+            int taken = cargo.remove(item, amount - removed);
+            removed += taken;
+            if(removed >= amount) break;
+        }
+        return removed;
+    }
+
+    public Item cargoItem(){
+        for(CargoMount cargo : cargoMounts){
+            Item item = cargo.displayItem();
+            if(item != null) return item;
+        }
+        return null;
+    }
+
+    public int cargoAmount(Item item){
+        if(item == null) return 0;
+        int amount = 0;
+        for(CargoMount cargo : cargoMounts) amount += cargo.items.get(item);
+        return amount;
+    }
+
+    String cargoKey(PlacedModule module){
+        return module.type.name + ":" + module.x + ":" + module.y;
+    }
+
+    public CargoMount cargoAt(int x, int y){
+        for(CargoMount cargo : cargoMounts){
+            if(cargo.placed.x == x && cargo.placed.y == y) return cargo;
+        }
+        return null;
+    }
+
+    String stateData(){
+        StringBuilder result = new StringBuilder(design == null ? "" : design.serialize());
+        result.append('#');
+        boolean[] firstCargo = {true};
+        for(CargoMount cargo : cargoMounts){
+            if(!firstCargo[0]) result.append('|');
+            firstCargo[0] = false;
+            result.append(cargo.placed.x).append(',').append(cargo.placed.y).append(':');
+            boolean[] firstItem = {true};
+            cargo.items.each((item, amount) -> {
+                if(!firstItem[0]) result.append(';');
+                firstItem[0] = false;
+                result.append(item.name).append('=').append(amount);
+            });
+        }
+        return result.toString();
+    }
+
+    String designData(String stateData){
+        int split = stateData.indexOf('#');
+        return split < 0 ? stateData : stateData.substring(0, split);
+    }
+
+    void readCargoData(String stateData){
+        for(CargoMount cargo : cargoMounts){
+            cargo.items.clear();
+            cargo.lastItem = null;
+        }
+        int split = stateData.indexOf('#');
+        if(split < 0 || split + 1 >= stateData.length()) return;
+        for(String entry : stateData.substring(split + 1).split("\\|")){
+            String[] header = entry.split(":", 2);
+            if(header.length != 2) continue;
+            String[] coordinates = header[0].split(",", 2);
+            if(coordinates.length != 2) continue;
+            try{
+                CargoMount cargo = cargoAt(Integer.parseInt(coordinates[0]), Integer.parseInt(coordinates[1]));
+                if(cargo == null || header[1].isEmpty()) continue;
+                for(String stack : header[1].split(";")){
+                    String[] itemData = stack.split("=", 2);
+                    if(itemData.length != 2) continue;
+                    Item item = content.item(itemData[0]);
+                    if(item == null) continue;
+                    int amount = Mathf.clamp(Integer.parseInt(itemData[1]), 0, cargo.capacity());
+                    if(amount > 0) cargo.add(item, amount);
+                }
+            }catch(RuntimeException ignored){
+            }
+        }
     }
 
     // ---- battle damage: modules get torn off ----
@@ -301,14 +435,16 @@ public class ModularUnitEntity extends TankUnit{
     @Override
     public void write(Writes write){
         super.write(write);
-        write.str(design == null ? "" : design.serialize());
+        write.str(stateData());
         write.i(shedCount);
     }
 
     @Override
     public void read(Reads read){
         super.read(read);
-        setDesign(ModularDesign.read(read.str()));
+        String stateData = read.str();
+        setDesign(ModularDesign.read(designData(stateData)));
+        readCargoData(stateData);
         shedCount = read.i();
     }
 
@@ -335,14 +471,15 @@ public class ModularUnitEntity extends TankUnit{
     @Override
     public void writeSync(Writes write){
         super.writeSync(write);
-        write.str(design == null ? "" : design.serialize());
+        write.str(stateData());
         write.i(shedCount);
     }
 
     @Override
     public void readSync(Reads read){
         super.readSync(read);
-        ModularDesign incoming = ModularDesign.read(read.str());
+        String incomingState = read.str();
+        ModularDesign incoming = ModularDesign.read(designData(incomingState));
         int incomingShed = read.i();
 
         //rebuilding mounts resets WeaponMount state (rotation, reload, heat...). The design
@@ -354,5 +491,6 @@ public class ModularUnitEntity extends TankUnit{
             setDesign(incoming);
             shedCount = incomingShed;
         }
+        readCargoData(incomingState);
     }
 }

@@ -5,7 +5,6 @@ import arc.util.*;
 import mindustry.game.EventType.*;
 import mindustry.gen.*;
 import mindustry.mod.*;
-import mindustry.ui.dialogs.*;
 import modularis.content.*;
 import modularis.type.units.*;
 
@@ -18,12 +17,21 @@ public class MdlMod extends Mod{
 
         //register the custom modular unit entity so it can be saved and networked
         ModularUnitEntity.classID = EntityMapping.register("modularis-modular-unit", ModularUnitEntity::new);
+        // Удалил от темплейта херь
+        Events.run(Trigger.update, CargoInteraction::update);
+        Events.run(Trigger.draw, CargoInteraction::drawOverlay);
+        Events.on(ServerLoadEvent.class, event -> netServer.addPacketHandler(CargoInteraction.packetName, CargoInteraction::handle));
+        Events.on(ClientLoadEvent.class, event -> {
+            CargoInteraction.installInput();
+            netServer.addPacketHandler(CargoInteraction.packetName, CargoInteraction::handle);
+        });
 
         Events.run(Trigger.afterGameUpdate, () -> {
             if(player != null && player.unit() instanceof ModularUnitEntity e && e.type instanceof ModularUnitType mt){
                 mt.omniMovement = e.hovering;
             }
         });
+
     }
 
     @Override
