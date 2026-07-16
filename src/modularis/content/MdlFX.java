@@ -16,7 +16,7 @@ import modularis.type.units.modules.*;
 public class MdlFX{
 
     public static Effect bloodPuddle, workerBuild, wheelDust, menderPulse, turboSmoke,
-        moduleDebrisFly, moduleDebrisRest, neoplasmLaserChargeSmall, shootFlame, drillSmoke;
+        moduleDebrisFly, moduleDebrisRest, neoplasmLaserChargeSmall, shootFlame, drillSmoke, icbmFlame, nukeBlast;
 
     public static final float debrisLife = 60f * 120f;
     public static final float debrisFlyTime = 55f;
@@ -39,12 +39,49 @@ public class MdlFX{
         loaded = true;
 
         shootFlame = new Effect(32f, 90f, e -> {
-            Draw.color(Pal.lightFlame, Pal.darkFlame, Color.gray, e.fin());
+            Draw.color(Pal.lightFlame, Pal.darkFlame, Color.valueOf("55555500"), e.fin());
     
             Angles.randLenVectors(e.id, 12, e.finpow() * 60f, e.rotation, 14f, (x, y) -> {
                 Fill.circle(e.x + x, e.y + y, 0.65f + e.fout() * 1.5f);
             });
         }).followParent(false);
+
+        icbmFlame = new Effect(23f, 90f, e -> {
+            Draw.color(Pal.lightFlame, Pal.darkFlame, Color.valueOf("55555500"), e.fin());
+
+            Fill.circle(e.x, e.y, 0.3f + e.fout() * 1.5f);
+        }).followParent(false);
+
+        nukeBlast = new Effect(100f, e -> {
+            float radius = 300;
+
+            float flash = Mathf.clamp(1f - e.fin() * 5f);
+            if(flash > 0f){
+                Draw.color(Color.white);
+                Draw.alpha(flash);
+                Fill.circle(e.x, e.y, radius * 0.55f * (0.3f + flash * 0.7f));
+            }
+
+            for(int i = 0; i < 2; i++){
+                float p = Mathf.clamp(e.fin() * 1.15f - i * 0.12f);
+                if(p <= 0f) continue;
+                float eased = 1f - (1f - p) * (1f - p);
+
+                Draw.color(Color.white, Pal.lightOrange, p);
+                Draw.alpha((1f - p) * (i == 0 ? 1f : 0.6f));
+                Lines.stroke((1f - p) * 5f + 0.6f);
+                Lines.circle(e.x, e.y, radius * eased);
+            }
+
+            float dustP = Mathf.clamp(e.fin() * 0.9f);
+            Draw.color(Pal.darkFlame, Color.valueOf("2b2624"), dustP);
+            Draw.alpha((1f - dustP * 0.6f) * e.fout() * 0.5f);
+            Lines.stroke(radius * 0.05f * dustP + 1f);
+            Lines.circle(e.x, e.y, radius * (0.15f + dustP * 0.8f));
+
+            Draw.reset();
+        }).layer(Layer.flyingUnit + 2f);
+        nukeBlast.clip = 900f;
 
         neoplasmLaserChargeSmall = new Effect(40f, 100f, e -> {
             Draw.color(Pal.neoplasm1);
@@ -152,7 +189,7 @@ public class MdlFX{
                 Fill.circle(rx, ry, (1.3f + Fx.rand.random(1.8f)) * e.fout());
             }
             Draw.reset();
-        }).layer(Layer.debris);
+        }).layer(Layer.flyingUnit - 1f);
 
         wheelDust = new Effect(34f, e -> {
             Fx.rand.setSeed(e.id);

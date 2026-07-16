@@ -9,6 +9,7 @@ import mindustry.gen.*;
 import mindustry.graphics.*;
 import mindustry.type.*;
 import mindustry.type.weapons.*;
+import modularis.type.units.*;
 import modularis.type.units.modules.*;
 
 public class MdlModules{
@@ -27,7 +28,7 @@ public class MdlModules{
         // movement
         wheel, track, trackBig, trackGigant, hover,
         // weapons
-        gun, discharger, cannon, sanguis, laculum, flamethrower, artillery, pierceCannon, wolfRae, 
+        gun, discharger, cannon, sanguis, laculum, flamethrower, artillery, pierceCannon, wolfRae, interfector,
         pointDefence, buildTower, repairTower, airborne,
         // abilities
         mender, pulsus, turboHeater, overclocker, compressor, reactiveArmorer, transformator, reformator,c4, shieldEmitter, drill;
@@ -249,7 +250,7 @@ public class MdlModules{
             moveSpeed = 2.2f;
             w = 1; h = 6;
             haulWeight = 20f;
-            maxWeight = 150f;
+            maxWeight = 100f;
             rotateSpeed = 5f;
             powerUse = 2.1f;
         }});
@@ -581,6 +582,41 @@ public class MdlModules{
                     incendAmount = 1;
 
                     colors = new Color[]{Pal.neoplasm1.cpy().a(.2f), Pal.neoplasm1.cpy().a(.5f), Pal.neoplasm2.cpy().mul(1.2f), Color.white};
+                }};
+            }};
+        }});
+
+        interfector = add(new ModulTurret("interfector4x6"){{
+            localizedName = "Interfector";
+            description = "A massive ICBM launch weapon.";
+            baseSprite = "base4x6";
+            weight = 80f;
+            health = 2000f;
+            w = 4; h = 6;
+            powerUse = 70f;
+            slotCost = 12;
+            weapon = new Weapon("modularis-interfector4x6"){{
+                shake = 20f;
+
+                rotate = true;
+                rotateSpeed = 0.5f;
+                reload = 3000f;
+                recoil = 1f;
+                
+                shootSound = Sounds.explosionReactorNeoplasm;
+
+                bullet = new ICBM(4f, 10){{
+                    width = 24f;
+                    sprite = "missile-large";
+                    height = 32f;
+                    lifetime = 200f;
+                    hitSize = 1f;
+                    splashDamageRadius = 300f;
+                    splashDamage = 15000f;
+                    trailLength = 3;
+                    trailWidth = 0.5f;
+
+                    status = StatusEffects.melting;
                 }};
             }};
         }});
