@@ -31,7 +31,7 @@ public class MdlModules{
         gun, discharger, cannon, sanguis, laculum, flamethrower, artillery, pierceCannon, wolfRae, interfector,
         pointDefence, buildTower, repairTower, airborne,
         // abilities
-        mender, pulsus, turboHeater, overclocker, compressor, reactiveArmorer, transformator, reformator,c4, shieldEmitter, drill;
+        mender, pulsus, turboHeater, overclocker, compressor, reactiveArmorer, transformator, reformator,c4, shieldEmitter, drill, tow;
 
     public static void load(){
         if(!all.isEmpty()) return;
@@ -864,6 +864,8 @@ public class MdlModules{
             health = 40f;
             healthMultiplier = 0.5f;
         }});
+
+        tow = add(new ModulTow("tow1x1"));
 
         turboHeater = add(new ModuleType("turboheater2x2"){{
             localizedName = "Turbo Heater";
