@@ -1,5 +1,6 @@
 package modularis.content;
 
+import arc.Core;
 import arc.graphics.*;
 import arc.struct.*;
 import mindustry.content.*;
@@ -28,8 +29,8 @@ public class MdlModules{
         // movement
         wheel, track, trackBig, trackGigant, hover,
         // weapons
-        gun, discharger, cannon, sanguis, laculum, flamethrower, artillery, pierceCannon, wolfRae, interfector,
-        pointDefence, buildTower, repairTower, airborne,
+        gun, discharger, cannon, sanguis, laculum, haberBosch, flamethrower, artillery, pierceCannon, wolfRae, interfector,
+        pointDefence, buildTower, repairTower, airborne, minelayer,
         // abilities
         mender, pulsus, turboHeater, overclocker, compressor, reactiveArmorer, transformator, reformator,c4, shieldEmitter, drill, tow;
 
@@ -409,6 +410,73 @@ public class MdlModules{
             }};
         }});
 
+        haberBosch = add(new ModulTurret("gaber-bosh2x2"){{
+            localizedName = "Haber-Bosch";
+            description = "Fires grenades filled with corrosive gas that devours enemies.";
+            baseSprite = "base2x2";
+            weight = 8f;
+            health = 300f;
+            w = 2; h = 2;
+            powerUse = 4f;
+            slotCost = 3;
+            weapon = new Weapon("modularis-gaber-bosh2x2"){{
+                rotate = true;
+                reload = 500f;
+                inaccuracy = 40f;
+                rotateSpeed = 4f;
+                recoil = 1f;
+                shootCone = 60f;
+
+                shootSound = Sounds.shootMissileSmall;
+                bullet = new ArtilleryBulletType(4f, 10){{
+                    width = 8f;
+                    height = 8f;
+                    lifetime = 20f;
+                    splashDamageRadius = 10f;
+                    splashDamage = 10f;
+                    trailLength = 12;
+                    trailWidth = 5f;
+                    hitEffect = despawnEffect = MdlFX.poisonGasCloud;
+                    hitSound = despawnSound = Sounds.explosionCleroi;
+
+                    BulletType cloudPulse = new BulletType(0.001f, 0){{
+                        lifetime = 1f;
+                        instantDisappear = true;
+                        splashDamage = 15f;
+                        splashDamageRadius = 70f;
+                        status = StatusEffects.corroded;
+                        statusDuration = 60f * 4f;
+                        hitEffect = despawnEffect = Fx.none;
+                        hitSound = despawnSound = Sounds.none;
+                    }};
+                    BulletType gasCloud = new BulletType(0.001f, 0){{
+                        lifetime = 60f * 14f;
+                        speed = 0f;
+                        collides = false;
+                        intervalBullet = cloudPulse;
+                        bulletInterval = 20f;
+                        hitEffect = despawnEffect = Fx.none;
+                        hitSound = despawnSound = Sounds.none;
+                    }};
+                    fragBullet = new BasicBulletType(6f, 22){{
+                        width = 3f;
+                        height = 5f;
+                        lifetime = 6f;
+                        drag = 0.01f;
+
+                        fragBullet = gasCloud;
+                        fragBullets = 1;
+                        fragOnDespawn = true;
+
+                        hitEffect = despawnEffect = MdlFX.poisonGasCloud;
+                        hitSound = despawnSound = Sounds.explosionCleroi;
+                    }};
+                    fragBullets = 4;
+                    fragOnDespawn = true;
+                }};
+            }};
+        }});
+
         flamethrower = add(new ModulTurret("flamethower3x1"){{
             localizedName = "Flamethrower";
             description = "Accendite eos igne Graeco.";
@@ -736,6 +804,68 @@ public class MdlModules{
                         spawnUnit = UnitTypes.dagger;
                         drag = 0.01f;
                     }};
+                }};
+            }};
+        }});
+
+        minelayer = add(new ModulTurret("minelayer2x3"){{
+            localizedName = "Minelayer";
+            description = "Lays mines that explode when the enemy steps on them.";
+            baseSprite = "minelayer-base2x3";
+            weight = 9f;
+            health = 500f;
+            w = 3; h = 2;
+            powerUse = 5f;
+            slotCost = 3;
+            weapon = new Weapon("modularis-minelayer2x3"){{
+                rotate = true;
+                reload = 500f;
+                inaccuracy = 80f;
+                rotateSpeed = 20f;
+                shootY = 0;
+                recoil = 0f;
+                shootCone = 60f;
+
+                shootSound = Sounds.shootAlpha;
+                bullet = new FlakBulletType(){{
+                    sprite = "large-bomb";
+                    width = height = 20;
+                    maxRange = 30f;
+                    ignoreRotation = true;
+
+                    backColor = Pal.orangeSpark;
+                    frontColor = Color.white;
+                    mixColorTo = Color.white;
+
+                    hitSound = Sounds.explosionDull;
+
+                    shootCone = 180f;
+                    ejectEffect = Fx.none;
+                    hitShake = 4f;
+
+                    hitSize = 20;
+                    collides = false;
+                    collidesAir = false;
+                    collidesGround = true;
+                    layer = Layer.debris;
+                    lifetime = 15000f;
+
+                    despawnEffect = Fx.massiveExplosion;
+                    hitEffect = Fx.massiveExplosion;
+                    keepVelocity = false;
+                    spin = 0f;
+
+                    shrinkX = shrinkY = 0f;
+
+                    speed = 0f;
+
+                    splashDamage = 220f;
+                    splashDamageRadius = 80f;
+                    damage = splashDamage * 0.7f;
+
+                    explodeRange = 40f;
+                    explodeDelay = 10f;
+                    flakInterval = 6f;
                 }};
             }};
         }});
