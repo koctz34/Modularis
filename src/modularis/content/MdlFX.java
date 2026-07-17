@@ -16,7 +16,10 @@ import modularis.type.units.modules.*;
 public class MdlFX{
 
     public static Effect bloodPuddle, workerBuild, wheelDust, menderPulse, turboSmoke,
-        moduleDebrisFly, moduleDebrisRest, neoplasmLaserChargeSmall, shootFlame, drillSmoke, icbmFlame, nukeBlast;
+        moduleDebrisFly, moduleDebrisRest, neoplasmLaserChargeSmall, shootFlame, drillSmoke, icbmFlame, nukeBlast,
+        poisonGasCloud;
+
+    public static final float poisonGasCloudLife = 60f * 15f;
 
     public static final float debrisLife = 60f * 120f;
     public static final float debrisFlyTime = 55f;
@@ -247,5 +250,53 @@ public class MdlFX{
 
             Draw.reset();
         });
+
+        //Chlorine
+        poisonGasCloud = new Effect(poisonGasCloudLife, 90f, e -> {
+            Fx.rand.setSeed(e.id);
+
+            Color bright = Color.valueOf("e8f06a");
+            Color mid = Color.valueOf("a8c832");
+            Color deep = Color.valueOf("6f9220");
+
+            float fin = e.fin();
+            float spread = 30f + fin * 44f;
+
+            float alpha = Interp.pow2Out.apply(e.fout()) * 0.62f;
+
+            Draw.z(Layer.flyingUnit - 1f);
+
+            for(int i = 0; i < 16; i++){
+                float ang = Fx.rand.random(360f);
+                float dst = Fx.rand.random(0.25f, 1f) * spread;
+                float drift = fin * Fx.rand.random(3f, 11f);
+                float rx = e.x + Angles.trnsx(ang, dst);
+                float ry = e.y + Angles.trnsy(ang, dst) + drift;
+                float size = (2.2f + Fx.rand.random(4.8f)) * (0.55f + fin * 0.65f);
+
+                Draw.color(bright, mid, Fx.rand.random(1f));
+                Draw.alpha(alpha * (0.35f + Fx.rand.random(0.45f)));
+                Fill.circle(rx, ry, size);
+            }
+
+            for(int i = 0; i < 8; i++){
+                float ang = Fx.rand.random(360f) + fin * 40f;
+                float dst = Fx.rand.random(0.1f, 0.55f) * spread;
+                float rx = e.x + Angles.trnsx(ang, dst);
+                float ry = e.y + Angles.trnsy(ang, dst) + fin * 4f;
+                float size = (3.5f + Fx.rand.random(5f)) * (0.7f + fin * 0.35f);
+
+                Draw.color(mid, deep, fin);
+                Draw.alpha(alpha * 0.5f);
+                Fill.circle(rx, ry, size);
+            }
+
+            Draw.color(mid, deep, fin * 0.6f);
+            Draw.alpha(alpha * 0.28f);
+            Fill.circle(e.x, e.y, spread * 0.42f);
+
+            Draw.reset();
+        }).followParent(false);
+        poisonGasCloud.clip = 120f;
     }
 }
