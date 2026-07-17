@@ -29,7 +29,7 @@ public class MdlModules{
         // movement
         wheel, track, trackBig, trackGigant, hover,
         // weapons
-        gun, discharger, cannon, sanguis, laculum, gaberBosh, flamethrower, artillery, pierceCannon, wolfRae, interfector,
+        gun, discharger, cannon, sanguis, laculum, haberBosch, flamethrower, artillery, pierceCannon, wolfRae, interfector,
         pointDefence, buildTower, repairTower, airborne, minelayer,
         // abilities
         mender, pulsus, turboHeater, overclocker, compressor, reactiveArmorer, transformator, reformator,c4, shieldEmitter, drill;
@@ -410,7 +410,7 @@ public class MdlModules{
             }};
         }});
 
-        gaberBosh = add(new ModulTurret("gaber-bosh2x2"){{
+        haberBosch = add(new ModulTurret("gaber-bosh2x2"){{
             localizedName = "Haber-Bosch";
             description = "Fires grenades filled with corrosive gas that devours enemies.";
             baseSprite = "base2x2";
