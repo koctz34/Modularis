@@ -40,6 +40,8 @@ public class ModularUnitEntity extends TankUnit{
 
     /** How many modules have already been shed at damage thresholds. */
     public int shedCount;
+    public final int[] towUnitIds = {-1, -1}, towXs = new int[2], towYs = new int[2], towOtherXs = new int[2], towOtherYs = new int[2];
+    public final float[] towLengths = new float[2], towTensions = new float[2];
 
     public float weaponRangeMin = -1f;
     public float weaponRangeMax = -1f;
@@ -462,6 +464,10 @@ public class ModularUnitEntity extends TankUnit{
         super.write(write);
         write.str(stateData());
         write.i(shedCount);
+        for(int i = 0; i < 2; i++){
+            write.i(towUnitIds[i]); write.i(towXs[i]); write.i(towYs[i]);
+            write.i(towOtherXs[i]); write.i(towOtherYs[i]); write.f(towLengths[i]); write.f(towTensions[i]);
+        }
     }
 
     @Override
@@ -470,6 +476,10 @@ public class ModularUnitEntity extends TankUnit{
         String stateData = read.str();
         applyDesignState(ModularDesign.read(designData(stateData)), read.i());
         readCargoData(stateData);
+        for(int i = 0; i < 2; i++){
+            towUnitIds[i] = read.i(); towXs[i] = read.i(); towYs[i] = read.i();
+            towOtherXs[i] = read.i(); towOtherYs[i] = read.i(); towLengths[i] = read.f(); towTensions[i] = read.f();
+        }
     }
 
     @Override
@@ -499,6 +509,10 @@ public class ModularUnitEntity extends TankUnit{
         super.writeSync(write);
         write.str(stateData());
         write.i(shedCount);
+        for(int i = 0; i < 2; i++){
+            write.i(towUnitIds[i]); write.i(towXs[i]); write.i(towYs[i]);
+            write.i(towOtherXs[i]); write.i(towOtherYs[i]); write.f(towLengths[i]); write.f(towTensions[i]);
+        }
     }
 
     @Override
@@ -507,6 +521,10 @@ public class ModularUnitEntity extends TankUnit{
         String incomingState = read.str();
         ModularDesign incoming = ModularDesign.read(designData(incomingState));
         int incomingShed = read.i();
+        for(int i = 0; i < 2; i++){
+            towUnitIds[i] = read.i(); towXs[i] = read.i(); towYs[i] = read.i();
+            towOtherXs[i] = read.i(); towOtherYs[i] = read.i(); towLengths[i] = read.f(); towTensions[i] = read.f();
+        }
 
         //rebuilding mounts resets WeaponMount state (rotation, reload, heat...). The design
         //string is sent every sync tick, but only changes when modules are shed - so skip
