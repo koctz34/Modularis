@@ -57,7 +57,7 @@ public class TowInteraction{
     }
 
     public static void update(){
-        if(headless || !state.isGame()) return;
+        if(!state.isGame()) return;
         installInput();
         restoreLinks();
         for(int i = links.size - 1; i >= 0; i--){
