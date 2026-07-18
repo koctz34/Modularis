@@ -259,7 +259,19 @@ public class TowInteraction{
         clearTow(link.b, link.towB);
     }
 
-    private record TowEnd(ModularUnitEntity unit, PlacedModule tow){}
+    //NOT a record: D8 (--min-api 14) fails to desugar java.lang.Record on some Android SDK/
+    //build-tools combinations ("Cannot ensure java.lang.Record as a synthetic program class"),
+    //which silently produced a jar with no working Android dex - the exact cause of the
+    //Android-only ClassNotFoundException on this mod. A plain holder class sidesteps it entirely.
+    private static final class TowEnd{
+        final ModularUnitEntity unit;
+        final PlacedModule tow;
+
+        TowEnd(ModularUnitEntity unit, PlacedModule tow){
+            this.unit = unit;
+            this.tow = tow;
+        }
+    }
 
     private static class TowLink{
         final ModularUnitEntity a, b;
