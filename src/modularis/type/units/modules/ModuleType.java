@@ -69,6 +69,11 @@ public class ModuleType{
      */
     public float buildSpeed = 0f;
 
+    /** {@code UnitType.canBoost} */
+    public boolean booster = false;
+    public float boostMultiplier = 1.5f;
+    public float boostMaxWeight = 100f;
+
     /** Effect emitted every so often while the module is running. Null = none. */
     public @Nullable Effect ambientEffect;
     /** Chance per tick to emit {@link #ambientEffect}. */
@@ -172,6 +177,10 @@ public class ModuleType{
         if(slot != SlotType.none) stat(table, "Slots needed", slotCost + " " + slot.title.toLowerCase());
         if(cargoCapacity > 0) stat(table, "Cargo capacity", Strings.autoFixed(cargoCapacity, 0));
         if(buildSpeed > 0) stat(table, "Build speed", "[lime]x" + Strings.autoFixed(buildSpeed, 2) + "[]");
+        if(booster){
+            stat(table, "Boost speed", "[lime]x" + Strings.autoFixed(boostMultiplier, 2) + "[]");
+            stat(table, "Max weight to boost", "[cyan]" + Strings.autoFixed(boostMaxWeight, 0) + "[]");
+        }
 
         mult(table, "Health", healthMultiplier, false);
         mult(table, "Damage", damageMultiplier, false);

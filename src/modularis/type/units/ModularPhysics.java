@@ -117,6 +117,12 @@ public class ModularPhysics{
             prodMult *= t.powerProductionMultiplier;
             useMult *= t.powerUseMultiplier;
 
+            if(t.booster){
+                s.hasBooster = true;
+                s.boostMaxWeight = Math.max(s.boostMaxWeight, t.boostMaxWeight);
+                s.boostMultiplier *= t.boostMultiplier;
+            }
+
             if(t instanceof ModulWheel w){
                 float haul = Math.max(w.haulWeight, 0.001f);
                 s.hasWheels = true;
@@ -129,6 +135,8 @@ public class ModularPhysics{
                 if(w instanceof ModulHover h){
                     s.hasHover = true;
                     s.hoverMaxWeight = Math.max(s.hoverMaxWeight, h.maxWeight);
+                }else{
+                    s.hasGroundDrive = true;
                 }
             }else if(t instanceof ModulC4 c4){
                 //more charges = more damage, and a bigger (but sub-linear) blast
@@ -176,6 +184,9 @@ public class ModularPhysics{
         s.powerProd *= prodMult;
         s.powerUse *= useMult;
 
+        s.hoverOverweight = s.hasHover && s.weight > s.hoverMaxWeight;
+        s.boostOverweight = s.hasBooster && s.weight > s.boostMaxWeight;
+
         // 5. power satisfaction
         s.powerRatio = s.powerUse <= 0.0001f ? 1f : Mathf.clamp(s.powerProd / s.powerUse, 0f, 1f);
 
@@ -191,7 +202,7 @@ public class ModularPhysics{
         float wt = Mathf.clamp((s.weight - lightWeight) / (heavyWeight - lightWeight), 0f, 1f);
         s.weightFactor = Mathf.lerp(1f, minWeightSpeed, wt);
 
-        if(s.hasHover){
+        if(s.hovering()){
             s.weightFactor = 1f - (1f - s.weightFactor) * hoverWeightRelief;
         }
 
@@ -202,7 +213,6 @@ public class ModularPhysics{
         s.underpowered = s.powerRatio < 0.999f;
         s.unbalanced = s.hasWheels && s.balanceFactor < 0.95f;
 
-        s.hoverOverweight = s.hasHover && s.weight > s.hoverMaxWeight;
         s.immobile = !s.hasRoot || !s.hasWheels || s.speedRating < 0.02f || s.hoverOverweight;
         return s;
     }
@@ -216,10 +226,21 @@ public class ModularPhysics{
         public float hoverMaxWeight;
         /** True if hovers are present but the machine is too heavy to lift. */
         public boolean hoverOverweight;
+        /** True if the design also carries a wheel/track that needs to touch the ground. */
+        public boolean hasGroundDrive;
 
-        /** True when the machine actually floats: has a hover and is within its lift limit. */
         public boolean hovering(){
-            return hasHover && !hoverOverweight;
+            return hasHover && !hoverOverweight && !hasGroundDrive;
+        }
+
+        /** Has at least one booster. */
+        public boolean hasBooster;
+        public float boostMaxWeight;
+        public boolean boostOverweight;
+        public float boostMultiplier = 1f;
+
+        public boolean canBoost(){
+            return hasBooster && !boostOverweight;
         }
 
         public int wheelCount;

@@ -32,7 +32,7 @@ public class MdlModules{
         gun, discharger, cannon, sanguis, laculum, haberBosch, flamethrower, artillery, pierceCannon, wolfRae, interfector,
         pointDefence, buildTower, repairTower, airborne, minelayer,
         // abilities
-        mender, pulsus, turboHeater, overclocker, compressor, reactiveArmorer, transformator, reformator,c4, shieldEmitter, drill;
+        mender, pulsus, turboHeater, overclocker, compressor, reactiveArmorer, transformator, reformator,c4, shieldEmitter, jetEngine, drill;
 
     public static void load(){
         if(!all.isEmpty()) return;
@@ -913,8 +913,7 @@ public class MdlModules{
 
         drill = add(new ModulDrill("drill2x3"){{
             localizedName = "Drill";
-            description = "Grinds ore the machine drives over straight into its hold. "
-                + "Also lets the machine be ordered to mine, hauling ore back to the core.";
+            description = "Grinds ore the machine drives over straight into its hold. ";
             w = 3; h = 2;
             weight = 4f;
             health = 200f;
@@ -924,7 +923,7 @@ public class MdlModules{
             tier = 4;
             drillSpeed = 1f;
             drillTime = 45f;
-            mineRange = 110f; 
+            mineRange = 1f; 
         }});
 
         compressor = add(new ModuleType("compressor1x1"){{
@@ -934,7 +933,7 @@ public class MdlModules{
             slot = SlotType.ability;
             slotCost = 1;
             weightMultiplier = 0.8f;
-            healthMultiplier = 0.7f;
+            healthMultiplier = 0.8f;
             weight = 1.5f;
             health = 20f;
             powerUse = 1f;
@@ -946,7 +945,7 @@ public class MdlModules{
             category = ModuleCategory.ability;
             slot = SlotType.ability;
             slotCost = 1;
-            weightMultiplier = 1.3f;
+            weightMultiplier = 1.2f;
             healthMultiplier = 1.2f;
             weight = 1.5f;
             health = 20f;
@@ -1027,6 +1026,24 @@ public class MdlModules{
             ambientEffect = MdlFX.turboSmoke;
             ambientChance = 0.1f;
             ambientColor = Color.valueOf("9a8f86");
+        }});
+
+        jetEngine = add(new ModuleType("jet-engine1x4"){{
+            localizedName = "Jet Engine";
+            description = "Allows to use boost.";
+            category = ModuleCategory.ability;
+            slot = SlotType.ability;
+            slotCost = 1;
+            w = 4; h = 1;
+            boostMultiplier = 1.2f;
+            booster = true;
+            boostMaxWeight = 30;
+            weight = 1f;
+            health = 140f;
+            powerUse = 3f;
+
+            ambientEffect = MdlFX.icbmFlame;
+            ambientChance = 0.1f;
         }});
     }
 

@@ -41,6 +41,9 @@ public class MdlMod extends Mod{
         Events.run(Trigger.afterGameUpdate, () -> {
             if(player != null && player.unit() instanceof ModularUnitEntity e && e.type instanceof ModularUnitType mt){
                 mt.omniMovement = e.hovering;
+
+                mt.canBoost = e.boosting;
+                mt.boostMultiplier = e.boostMultiplier;
             }
         });
 

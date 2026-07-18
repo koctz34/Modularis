@@ -52,6 +52,11 @@ public class ModularUnitEntity extends TankUnit{
     /** True when the machine actually floats (has a hover and is within its lift limit). */
     public boolean hovering;
 
+    /** True if any booster module is aboard. */
+    public boolean hasBooster;
+    public boolean boosting;
+    public float boostMultiplier = 1f;
+
     public final Seq<PulsarMount> pulsars = new Seq<>();
     public final Seq<DrillMount> drills = new Seq<>();
     public final Seq<CargoMount> cargoMounts = new Seq<>();
@@ -200,6 +205,10 @@ public class ModularUnitEntity extends TankUnit{
         drillRange = 1f;
         hasHover = s != null && s.hasHover;
         hovering = s != null && s.hovering();
+
+        hasBooster = s != null && s.hasBooster;
+        boosting = s != null && s.canBoost();
+        boostMultiplier = s == null ? 1f : s.boostMultiplier;
     }
 
     @Override

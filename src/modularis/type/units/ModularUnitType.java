@@ -132,6 +132,9 @@ public class ModularUnitType extends UnitType{
             mineRange = e.drillRange + unit.hitSize / 2f;
         }
 
+        canBoost = e.boosting;
+        boostMultiplier = e.boostMultiplier;
+
         if(e.weaponRangeMax > 0f){
             range = e.weaponRangeMin;
             maxRange = e.weaponRangeMax;
@@ -172,9 +175,8 @@ public class ModularUnitType extends UnitType{
             t.ambientEffect.at(tmp.x, tmp.y, unit.rotation, t.ambientColor);
         }
 
-        //wheel dust while actually driving
         float moveFrac = unit.vel().len() / Math.max(0.001f, speed);
-        if(moveFrac > 0.12f) emitWheelDust(unit, e.design, cell, cx, cy, rot, moveFrac);
+        if(moveFrac > 0.12f && unit.elevation < 0.001f) emitWheelDust(unit, e.design, cell, cx, cy, rot, moveFrac);
     }
 
     private void updateShedding(ModularUnitEntity e){
@@ -214,6 +216,7 @@ public class ModularUnitType extends UnitType{
         for(PlacedModule m : design.modules){
             if(!(m.type instanceof ModulWheel) || m.type instanceof ModulHover) continue;
             if(!Mathf.chanceDelta(chance)) continue;
+
             dustPos(unit, m, cell, cx, cy, rot, tmp);
             MdlFX.wheelDust.at(tmp.x, tmp.y, unit.rotation);
         }
@@ -238,6 +241,11 @@ public class ModularUnitType extends UnitType{
         if(unit instanceof ModularUnitEntity he && he.hovering){
             Draw.z(Layer.groundUnit - 0.02f);
             drawHoverRings(he, design, cell, cx, cy);
+        }
+
+        if(unit.elevation > 0.001f){
+            Draw.z(Layer.groundUnit - 0.015f);
+            drawBoostGlow(unit, design, cell, cx, cy);
         }
 
         Draw.z(Layer.groundUnit - 0.01f);
@@ -300,6 +308,23 @@ public class ModularUnitType extends UnitType{
         Draw.reset();
     }
 
+    private void drawBoostGlow(Unit unit, ModularDesign design, float cell, float cx, float cy){
+        float rot = unit.rotation - 90f;
+        Draw.blend(Blending.additive);
+        for(PlacedModule m : design.modules){
+            if(!m.type.booster || !design.isActive(m)) continue;
+
+            worldPos(unit, m, cell, cx, cy, rot, tmp);
+            float radius = Math.max(m.type.w, m.type.h) * cell * 0.5f;
+            float pulse = 1f + Mathf.absin(Time.time, 5f, 0.15f);
+            Draw.color(unit.team.color, Color.white, 0.35f);
+            Draw.alpha(unit.elevation * 0.55f);
+            Fill.circle(tmp.x, tmp.y, radius * pulse * unit.elevation);
+        }
+        Draw.blend();
+        Draw.reset();
+    }
+
     private void drawTurretOutlines(Unit unit){
         WeaponMount[] ms = unit.mounts;
         if(ms == null || ms.length == 0) return;
@@ -328,7 +353,8 @@ public class ModularUnitType extends UnitType{
 
     private void drawShadow(Unit unit, ModularDesign design, float cell, float cx, float cy){
         boolean hover = unit instanceof ModularUnitEntity he && he.hovering;
-        float off = hover ? 5f : 2f;
+
+        float off = Mathf.lerp(hover ? 5f : 2f, 12f, unit.elevation);
 
         Draw.z(Layer.groundUnit - 0.5f);
         Draw.color(0f, 0f, 0f, hover ? 0.16f : 0.22f);
