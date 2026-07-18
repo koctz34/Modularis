@@ -32,7 +32,7 @@ public class MdlModules{
         gun, discharger, cannon, sanguis, laculum, haberBosch, flamethrower, artillery, pierceCannon, wolfRae, interfector,
         pointDefence, buildTower, repairTower, airborne, minelayer,
         // abilities
-        mender, pulsus, turboHeater, overclocker, compressor, reactiveArmorer, transformator, reformator,c4, shieldEmitter, jetEngine, drill;
+        mender, pulsus, turboHeater, overclocker, compressor, reactiveArmorer, transformator, reformator,c4, shieldEmitter, jetEngine, drill, tow;
 
     public static void load(){
         if(!all.isEmpty()) return;
@@ -1044,6 +1044,16 @@ public class MdlModules{
 
             ambientEffect = MdlFX.icbmFlame;
             ambientChance = 0.1f;
+        }});
+
+        tow = add(new ModulTow("tow1x1"){{
+            category = ModuleCategory.ability;
+            slot = SlotType.ability;
+            slotCost = 1;
+            w = 1; h = 1;
+            weight = 0.4f;
+            health = 50f;
+            powerUse = 0.5f;
         }});
     }
 
