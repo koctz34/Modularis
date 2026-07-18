@@ -32,10 +32,17 @@ public class MdlMod extends Mod{
         // Удалил от темплейта херь
         Events.run(Trigger.update, CargoInteraction::update);
         Events.run(Trigger.draw, CargoInteraction::drawOverlay);
-        Events.on(ServerLoadEvent.class, event -> netServer.addPacketHandler(CargoInteraction.packetName, CargoInteraction::handle));
+        Events.run(Trigger.update, TowInteraction::update);
+        Events.run(Trigger.draw, TowInteraction::draw);
+        Events.on(ServerLoadEvent.class, event -> {
+            netServer.addPacketHandler(CargoInteraction.packetName, CargoInteraction::handle);
+            netServer.addPacketHandler(TowInteraction.packetName, TowInteraction::handle);
+        });
         Events.on(ClientLoadEvent.class, event -> {
             CargoInteraction.installInput();
+            TowInteraction.installInput();
             netServer.addPacketHandler(CargoInteraction.packetName, CargoInteraction::handle);
+            netServer.addPacketHandler(TowInteraction.packetName, TowInteraction::handle);
         });
 
         Events.run(Trigger.afterGameUpdate, () -> {
