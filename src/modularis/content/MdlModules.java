@@ -30,7 +30,7 @@ public class MdlModules{
         wheel, track, trackBig, trackGigant, hover,
         // weapons
         gun, discharger, cannon, sanguis, laculum, haberBosch, flamethrower, artillery, pierceCannon, wolfRae, interfector,
-        pointDefence, buildTower, repairTower, airborne, minelayer,
+        pointDefence, antiBallistic, buildTower, repairTower, airborne, minelayer,
         // abilities
         mender, pulsus, turboHeater, overclocker, compressor, reactiveArmorer, transformator, reformator,c4, shieldEmitter, jetEngine, drill, tow;
 
@@ -208,51 +208,59 @@ public class MdlModules{
         // ---- Movement ----
         wheel = add(new ModulWheel("wheel1x1"){{
             localizedName = "Wheel";
-            description = "Drive wheel. Sets top speed and hauls weight, but needs power to spin.";
+            description = "Fast and nimble, but a narrow contact patch: wheels spin under load.";
             moveSpeed = 2f;
             haulWeight = 3f;
             rotateSpeed = 4.5f;
+
+            grip = 0.85f;
             powerUse = 0.6f;
         }});
 
         track = add(new ModulWheel("track3x1"){{
             localizedName = "Track";
-            description = "Heavy track. Lower speed, but can haul more weight.";
+            description = "Heavy track. Slower, but bites hard and hauls far more weight.";
             moveSpeed = 1.8f;
             w = 1; h = 3;
             haulWeight = 9f;
             rotateSpeed = 3.5f;
+
+            grip = 1.45f;
             powerUse = 1f;
         }});
 
         trackBig = add(new ModulWheel("track6x1"){{
             localizedName = "Big Track";
-            description = "Heavy track. Lower speed, but can haul more weight.";
+            description = "Heavy track. Slower, but bites hard and hauls far more weight.";
             moveSpeed = 1.7f;
             w = 1; h = 6;
             haulWeight = 19f;
             rotateSpeed = 3f;
+            grip = 1.55f;
             powerUse = 2f;
         }});
 
         trackGigant = add(new ModulWheel("track12x2"){{
             localizedName = "Gigant Track";
-            description = "Heavy track. Lower speed, but can haul more weight.";
+            description = "Enormous track. Immense grip and capacity, but ponderous.";
             moveSpeed = 1.7f;
             w = 2; h = 12;
             haulWeight = 42f;
             rotateSpeed = 3f;
+            grip = 1.7f;
             powerUse = 7f;
         }});
 
         hover = add(new ModulHover("hover6x1"){{
             localizedName = "Hover";
-            description = "Allows hovering over the ground, but has a weight limit.";
+            description = "Floats clear of terrain, but grips almost nothing and has a weight limit.";
             moveSpeed = 2.2f;
             w = 1; h = 6;
             haulWeight = 20f;
             maxWeight = 100f;
             rotateSpeed = 5f;
+
+            grip = 0.12f;
             powerUse = 2.1f;
         }});
 
@@ -677,7 +685,7 @@ public class MdlModules{
                     width = 24f;
                     sprite = "missile-large";
                     height = 32f;
-                    lifetime = 200f;
+                    lifetime = 500f;
                     hitSize = 1f;
                     splashDamageRadius = 300f;
                     splashDamage = 15000f;
@@ -709,6 +717,34 @@ public class MdlModules{
                     maxRange = 120f;
                     damage = 9f;
                     speed = 3f;
+                }};
+            }};
+        }});
+
+        antiBallistic = add(new ModulTurret("abi2x2"){{
+            localizedName = "ABM Battery";
+            description = "Long-range anti-ballistic missile battery.";
+            baseSprite = "base2x2";
+            weight = 16f;
+            health = 620f;
+            w = 2; h = 2;
+            powerUse = 20f;
+            slotCost = 4;
+            weapon = new AntiBallisticWeapon("modularis-abi2x2"){{
+                rotate = true;
+                rotateSpeed = 35f;
+                reload = 12f;
+                targetInterval = 0f;
+                targetSwitchInterval = 0f;
+                shootSound = Sounds.shootLaser;
+                shake = 3f;
+                color = Color.valueOf("ff6b4a");
+                beamEffect = Fx.pointBeam;
+                bullet = new BulletType(){{
+                    smokeEffect = Fx.pointHit;
+                    hitEffect = Fx.pointHit;
+                    damage = 40f;
+                    maxRange = 340f;
                 }};
             }};
         }});

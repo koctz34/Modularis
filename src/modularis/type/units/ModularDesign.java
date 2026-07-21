@@ -211,11 +211,11 @@ public class ModularDesign{
         return c;
     }
 
-    /** Total move speed contributed by all wheels. */
+    /** Total move speed contributed by all drive parts, whatever they propel with. */
     public float wheelSpeed(){
         float v = 0f;
         for(PlacedModule m : modules){
-            if(m.type instanceof ModulWheel w) v += w.moveSpeed;
+            if(m.type instanceof ModulPropulsor p) v += p.moveSpeed;
         }
         return v;
     }
@@ -223,7 +223,7 @@ public class ModularDesign{
     public float wheelRotateSpeed(){
         float v = 0f;
         for(PlacedModule m : modules){
-            if(m.type instanceof ModulWheel w) v += w.rotateSpeed;
+            if(m.type instanceof ModulPropulsor p) v += p.rotateSpeed;
         }
         return v;
     }

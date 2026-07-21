@@ -54,10 +54,19 @@ public class ModularUnitEntity extends TankUnit{
     /** True when the machine actually floats (has a hover and is within its lift limit). */
     public boolean hovering;
 
+    public PropulsionMode movementMode = PropulsionMode.ground;
+
     /** True if any booster module is aboard. */
     public boolean hasBooster;
     public boolean boosting;
     public float boostMultiplier = 1f;
+
+    public @Nullable ModularPhysics.Stats stats;
+
+    public ModularPhysics.Stats stats(){
+        if(stats == null && design != null) stats = ModularPhysics.compute(design);
+        return stats;
+    }
 
     public final Seq<PulsarMount> pulsars = new Seq<>();
     public final Seq<DrillMount> drills = new Seq<>();
@@ -92,8 +101,7 @@ public class ModularUnitEntity extends TankUnit{
 
         if(design != null && !design.isEmpty()){
             //convertors can scale total health, so bake their multiplier straight into
-            //maxHealth (rather than unit.healthMultiplier, which the engine also uses)
-            float healthMult = ModularPhysics.compute(design).healthMultiplier;
+            float healthMult = stats().healthMultiplier;
             maxHealth(Math.max(1f, design.totalHealth() * healthMult));
 
             float w = Math.max(1, design.widthCells());
@@ -198,7 +206,7 @@ public class ModularUnitEntity extends TankUnit{
         weaponRangeMin = min == Float.MAX_VALUE ? 0f : min;
         weaponRangeMax = max;
 
-        ModularPhysics.Stats s = design == null ? null : ModularPhysics.compute(design);
+        ModularPhysics.Stats s = stats = design == null ? null : ModularPhysics.compute(design);
 
         armor(s == null ? 0f : s.armor);
         cargoCapacity = s == null ? 0 : s.cargoCapacity;
@@ -211,6 +219,8 @@ public class ModularUnitEntity extends TankUnit{
         hasBooster = s != null && s.hasBooster;
         boosting = s != null && s.canBoost();
         boostMultiplier = s == null ? 1f : s.boostMultiplier;
+
+        movementMode = s == null ? PropulsionMode.ground : s.mode();
     }
 
     @Override

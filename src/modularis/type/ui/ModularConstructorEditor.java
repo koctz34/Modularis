@@ -217,12 +217,40 @@ public class ModularConstructorEditor extends BaseDialog{
                 .append(Strings.autoFixed(s.balancePercent(), 0)).append("%[]\n");
         }
 
+        //handling: torque over inertia, so a long hull turns worse than a compact one
+        if(s.hasWheels){
+            String tcol = s.turnFactor < 0.5f ? "[orange]" : s.turnFactor > 1.1f ? "[lime]" : "[lightgray]";
+            sb.append("Handling: ").append(tcol)
+                .append(Strings.autoFixed(s.turnPercent(), 0)).append("%[]\n");
+        }
+
+        //traction: is the drivetrain able to put its force down, or is it just spinning?
+        if(s.hasGroundDrive){
+            String gcol = s.slipping ? "[scarlet]" : "[lightgray]";
+            sb.append("Traction: ").append(gcol)
+                .append(Strings.autoFixed(s.driveForce, 1)).append('/')
+                .append(Strings.autoFixed(s.tractionForce, 1)).append("[]");
+            if(s.slipping) sb.append(" [scarlet]slipping[]");
+            sb.append('\n');
+        }
+
         //hover lift limit
         if(s.hasHover){
             String hcol = s.hoverOverweight ? "[scarlet]" : "[cyan]";
             sb.append("Hover lift: ").append(hcol)
                 .append(Strings.autoFixed(s.weight, 0)).append('/')
                 .append(Strings.autoFixed(s.hoverMaxWeight, 0)).append("[]\n");
+        }
+
+        //rotors: lift against mass, plus the torque that has to cancel out or the hull spins
+        if(s.hasRotor){
+            String rcol = s.liftRatio >= 1f ? "[lime]" : "[scarlet]";
+            sb.append("Rotor lift: ").append(rcol)
+                .append(Strings.autoFixed(s.effectiveLift, 0)).append('/')
+                .append(Strings.autoFixed(s.weight, 0)).append("[]\n");
+            if(s.torqueImbalance > ModularPhysics.torqueTolerance){
+                sb.append("Torque: [scarlet]unbalanced[] (add a counter-rotor)\n");
+            }
         }
 
         //C4 / kamikaze
@@ -240,8 +268,11 @@ public class ModularConstructorEditor extends BaseDialog{
             convMult(sb, "Speed", s.speedMod, false);
         }
 
-        //top speed
+        //top speed, and how long it takes to actually get there
         sb.append("Top speed: ").append(Strings.autoFixed(s.speedTiles(), 1)).append(" tiles/s\n");
+        if(s.hasWheels && !s.immobile){
+            sb.append("0-top: ").append(Strings.autoFixed(s.timeToSpeed(), 1)).append(" s\n");
+        }
 
         //slots granted by the command core(s) vs slots consumed
         for(SlotType st : SlotType.values()){

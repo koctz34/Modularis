@@ -82,6 +82,13 @@ public class ModularUnitType extends UnitType{
         return cellSize;
     }
 
+    public void applyHandling(ModularPhysics.Stats stats){
+        accel = stats.accelRating;
+
+        float applied = Mathf.clamp(stats.speedMultiplier(), 0.25f, 2f);
+        rotateSpeed = stats.turnRate / applied;
+    }
+
     public void applyMovementMode(ModularUnitEntity e){
         boolean hov = e.hovering;
         hovering = hov;
@@ -111,7 +118,9 @@ public class ModularUnitType extends UnitType{
 
         updateShedding(e);
 
-        ModularPhysics.Stats stats = ModularPhysics.compute(e.design);
+        ModularPhysics.Stats stats = e.stats();
+        if(stats == null) return;
+
         unit.speedMultiplier(stats.speedMultiplier());
         unit.damageMultiplier(stats.damageMultiplier);
 
@@ -134,6 +143,8 @@ public class ModularUnitType extends UnitType{
 
         canBoost = e.boosting;
         boostMultiplier = e.boostMultiplier;
+
+        applyHandling(stats);
 
         if(e.weaponRangeMax > 0f){
             range = e.weaponRangeMin;
@@ -214,7 +225,7 @@ public class ModularUnitType extends UnitType{
     private void emitWheelDust(Unit unit, ModularDesign design, float cell, float cx, float cy, float rot, float moveFrac){
         float chance = Mathf.clamp(moveFrac * 0.5f);
         for(PlacedModule m : design.modules){
-            if(!(m.type instanceof ModulWheel) || m.type instanceof ModulHover) continue;
+            if(!(m.type instanceof ModulWheel)) continue;
             if(!Mathf.chanceDelta(chance)) continue;
 
             dustPos(unit, m, cell, cx, cy, rot, tmp);

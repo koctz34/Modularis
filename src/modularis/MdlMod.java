@@ -51,6 +51,8 @@ public class MdlMod extends Mod{
 
                 mt.canBoost = e.boosting;
                 mt.boostMultiplier = e.boostMultiplier;
+
+                if(e.stats() != null) mt.applyHandling(e.stats());
             }
         });
 

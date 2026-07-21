@@ -4,34 +4,6 @@ import arc.math.*;
 
 import modularis.type.units.modules.*;
 
-/**
- * Turns a {@link ModularDesign} into concrete movement stats.
- *
- * The model, in words:
- *
- *  1. MASS. Every module has weight. The machine's absolute total weight sets a top-speed
- *     ceiling: a light buggy can hit the drivetrain's full speed, a heavy tank is capped
- *     far below it no matter how much drivetrain you bolt on.
- *
- *  2. CAPACITY. Wheels/tracks each haul a limited amount of weight. Summed, that's the
- *     machine's load capacity. Not enough capacity for the mass => overloaded, it crawls.
- *     Surplus capacity is not free speed - it's headroom to carry more armour.
- *
- *  3. DRIVETRAIN SPEED. The mechanical top speed is the CAPACITY-WEIGHTED AVERAGE of the
- *     drive parts, not the fastest one: a slow high-capacity track carries most of the load
- *     and so dominates the speed. Bolting one fast wheel onto a tracked hull nudges the
- *     average instead of lifting the whole machine to wheel speed.
- *
- *  4. BALANCE. The drive parts must sit under the centre of mass. We compare the machine's
- *     centre of mass against the capacity-weighted centroid of its drive parts; the further
- *     apart they are (relative to the machine's size), the worse it drives. This is what
- *     stops "one big track bolted to one side" from being optimal - the mass hangs off the
- *     drivetrain, so it drags instead of driving.
- *
- *  5. POWER. Engines produce it; drive parts, the core and weapons consume it. Short on
- *     power and everything runs at a fraction of its rating.
- *
- */
 public class ModularPhysics{
     /** Base world speed (UnitType.speed) corresponding to a speed rating of 1. */
     public static final float baseSpeed = 1.15f;
@@ -58,11 +30,31 @@ public class ModularPhysics{
     /** Worst-case speed fraction for a hopelessly unbalanced machine. */
     public static final float minBalance = 0.25f;
 
+    // ---- acceleration (force / mass) ----
+    public static final float baseAccel = 0.11f;
+    /** Force-to-mass ratio treated as "properly engined". Measured mid-range for good designs. */
+    public static final float accelReference = 0.9f;
+    public static final float minAccel = 0.022f, maxAccel = 0.30f;
+
+    // ---- turning (torque / inertia) ----
+    public static final float baseTurnRate = 2.2f;
+
+    public static final float turnReference = 1.1f;
+    public static final float minTurnFactor = 0.22f, maxTurnFactor = 1.5f;
+
+    public static final float turnBalanceFloor = 0.65f;
+
+    public static final float steerLever = 2f;
+
+    public static final float referenceDiscLoading = 0.6f;
+    public static final float minLiftEfficiency = 0.35f, maxLiftEfficiency = 1.4f;
+
+    public static final float torqueTolerance = 0.15f;
+
     public static Stats compute(ModularDesign design){
         Stats s = new Stats();
         s.weight = design.totalWeight();
 
-        //drivetrain: Σ(speed * capacity), so top speed can be averaged by how much of the
         //machine's weight each drive part actually carries
         float driveSum = 0f;
 
@@ -123,20 +115,32 @@ public class ModularPhysics{
                 s.boostMultiplier *= t.boostMultiplier;
             }
 
-            if(t instanceof ModulWheel w){
-                float haul = Math.max(w.haulWeight, 0.001f);
+            if(t instanceof ModulPropulsor p){
+                float haul = Math.max(p.haulWeight, 0.001f);
                 s.hasWheels = true;
                 s.wheelCount++;
                 s.capacity += haul;
-                driveSum += w.moveSpeed * haul;
+                driveSum += p.moveSpeed * haul;
                 driveX += mcx * haul;
                 driveY += mcy * haul;
 
-                if(w instanceof ModulHover h){
-                    s.hasHover = true;
-                    s.hoverMaxWeight = Math.max(s.hoverMaxWeight, h.maxWeight);
-                }else{
-                    s.hasGroundDrive = true;
+                switch(p.mode){
+                    case hover -> {
+                        s.hasHover = true;
+                        if(p instanceof ModulHover h){
+                            s.hoverMaxWeight = Math.max(s.hoverMaxWeight, h.maxWeight);
+                        }
+                    }
+                    case air -> {
+                        s.hasRotor = true;
+                        s.lift += p.lift();
+                        if(p instanceof ModulRotor r){
+                            s.discArea += r.discArea();
+                            s.rotorTorque += r.counterTorque;
+                            s.rotorTorqueAbs += Math.abs(r.counterTorque);
+                        }
+                    }
+                    default -> s.hasGroundDrive = true;
                 }
             }else if(t instanceof ModulC4 c4){
                 //more charges = more damage, and a bigger (but sub-linear) blast
@@ -151,6 +155,8 @@ public class ModularPhysics{
             comX /= massSum;
             comY /= massSum;
         }
+        s.centerX = comX;
+        s.centerY = comY;
 
         //RAW capacity: the drivetrain's own numbers, before any convertor scaling. Top speed
         //and the drive centroid are ratios over these, so scaling capacity must not touch them.
@@ -190,6 +196,33 @@ public class ModularPhysics{
         // 5. power satisfaction
         s.powerRatio = s.powerUse <= 0.0001f ? 1f : Mathf.clamp(s.powerProd / s.powerUse, 0f, 1f);
 
+        // ---- pass 2: inertia and traction, both measured about the centre of mass ----
+        float inertia = 0f, steerTorque = 0f, driveForce = 0f;
+        for(PlacedModule pm : design.modules){
+            ModuleType t = pm.type;
+            float mcx = pm.x + t.w / 2f, mcy = pm.y + t.h / 2f;
+            float lever = Mathf.dst(mcx, mcy, comX, comY);
+
+            inertia += Math.max(t.weight, 0.0001f) * lever * lever;
+
+            if(!design.isActive(pm) || !(t instanceof ModulPropulsor p)) continue;
+
+            float haul = Math.max(p.haulWeight, 0.001f);
+
+            float share = rawCapacity > 0.0001f ? haul / rawCapacity : 0f;
+            float normal = s.weight * share;
+            float traction = p.mode == PropulsionMode.hover ? p.thrust() : p.grip * normal;
+            driveForce += Math.min(p.thrust(), traction);
+            s.tractionForce += traction;
+
+            //steering torque: grip acting at a lever arm. Parts bunched around the centre of
+            //mass barely swing the hull; ones out at the ends of it swing it hard.
+            steerTorque += p.rotateSpeed * haul * p.grip * Mathf.clamp(lever / steerLever, 0.25f, 1.6f);
+        }
+        s.inertia = inertia;
+        s.steerTorque = steerTorque;
+        s.driveForce = driveForce * s.powerRatio;
+
         // 2. load: is there enough capacity to bear the mass?
         if(s.capacity <= 0.0001f || s.weight <= 0.0001f){
             s.loadFactor = 0f;
@@ -209,9 +242,36 @@ public class ModularPhysics{
         s.speedRating = s.topRating * s.loadFactor * s.weightFactor * s.balanceFactor
             * s.powerRatio * s.speedMod;
 
+        // ---- acceleration: F = ma, normalised into the engine's accel field ----
+        float forceRatio = s.weight > 0.0001f ? s.driveForce / s.weight : 0f;
+        s.accelRating = Mathf.clamp(baseAccel * forceRatio / accelReference, minAccel, maxAccel);
+
+        // ---- turn rate: angular acceleration is torque over inertia ----
+        if(inertia > 0.0001f && steerTorque > 0.0001f){
+            s.turnFactor = Mathf.clamp(steerTorque / inertia / turnReference, minTurnFactor, maxTurnFactor);
+        }else{
+            s.turnFactor = 0f;
+        }
+        s.turnRate = baseTurnRate * s.turnFactor * s.powerRatio
+            * Mathf.lerp(turnBalanceFloor, 1f, s.balanceFactor);
+
+        // ---- 8. lift (rotors) ----
+        if(s.hasRotor){
+            s.discLoading = s.discArea > 0.0001f ? s.weight / s.discArea : Float.MAX_VALUE;
+            s.liftEfficiency = Mathf.clamp(referenceDiscLoading / Math.max(s.discLoading, 0.0001f),
+                minLiftEfficiency, maxLiftEfficiency);
+
+            s.effectiveLift = s.lift * s.liftEfficiency * s.powerRatio;
+            s.liftRatio = s.weight > 0.0001f ? s.effectiveLift / s.weight : 0f;
+
+            s.torqueImbalance = s.rotorTorqueAbs > 0.0001f
+                ? Math.abs(s.rotorTorque) / s.rotorTorqueAbs : 0f;
+        }
+
         s.overloaded = s.capacity > 0f && s.weight > s.capacity;
         s.underpowered = s.powerRatio < 0.999f;
         s.unbalanced = s.hasWheels && s.balanceFactor < 0.95f;
+        s.slipping = s.hasGroundDrive && s.driveForce < s.weight * 0.12f;
 
         s.immobile = !s.hasRoot || !s.hasWheels || s.speedRating < 0.02f || s.hoverOverweight;
         return s;
@@ -220,6 +280,12 @@ public class ModularPhysics{
     /** Computed movement stats for a design. */
     public static class Stats{
         public boolean hasRoot, hasWheels, overloaded, underpowered, unbalanced, immobile;
+        /** True if the drivetrain can barely put its force down - wheels spinning under load. */
+        public boolean slipping;
+
+        /** Centre of mass, in design cells. */
+        public float centerX, centerY;
+
         /** Has hover. */
         public boolean hasHover;
         /** Weight limit of the strongest hover. */
@@ -231,6 +297,40 @@ public class ModularPhysics{
 
         public boolean hovering(){
             return hasHover && !hoverOverweight && !hasGroundDrive;
+        }
+
+        //---- rotors (groundwork; see ModulRotor) ----
+        /** Has at least one rotor. */
+        public boolean hasRotor;
+        /** Raw summed lift rating. */
+        public float lift;
+        /** Lift after disc efficiency and available power. */
+        public float effectiveLift;
+        /** Effective lift over mass. Must exceed 1 to leave the ground. */
+        public float liftRatio;
+        /** Summed rotor disc area, in cells^2. */
+        public float discArea;
+        /** Weight carried per cell^2 of rotor disc. Lower is more efficient. */
+        public float discLoading;
+        /** Lift multiplier from disc loading. */
+        public float liftEfficiency;
+        /** Signed rotor torque; opposite-spinning rotors cancel. */
+        public float rotorTorque;
+        /** Total absolute rotor torque, i.e. how much there is to cancel in the first place. */
+        public float rotorTorqueAbs;
+        public float torqueImbalance;
+
+        /** True when rotors could actually carry this machine (and nothing pins it to the floor). */
+        public boolean airborne(){
+            return hasRotor && !hasGroundDrive && liftRatio >= 1f
+                && torqueImbalance <= torqueTolerance;
+        }
+
+        /** How this machine moves, resolved from the parts it carries. */
+        public PropulsionMode mode(){
+            if(airborne()) return PropulsionMode.air;
+            if(hovering()) return PropulsionMode.hover;
+            return PropulsionMode.ground;
         }
 
         /** Has at least one booster. */
@@ -250,6 +350,24 @@ public class ModularPhysics{
         public float loadFactor, weightFactor, balanceFactor, balanceOffset;
         public float powerProd, powerUse, powerRatio;
         public float topRating, speedRating;
+
+        //---- acceleration ----
+        /** Usable drive force after grip and power: min(thrust, traction) summed over the parts. */
+        public float driveForce;
+        /** Total force the drivetrain could transmit if the engines could supply it. */
+        public float tractionForce;
+        /** Ready-made {@code UnitType.accel}. */
+        public float accelRating;
+
+        //---- turning ----
+        /** Rotational inertia about the centre of mass, sum(m * r^2). */
+        public float inertia;
+        /** Steering torque the drive parts can generate. */
+        public float steerTorque;
+        /** Handling quality, 1 = nominal. */
+        public float turnFactor;
+        /** Ready-made {@code UnitType.rotateSpeed}, in degrees per tick. */
+        public float turnRate;
 
         /** Summed plating. */
         public float armor;
@@ -299,7 +417,6 @@ public class ModularPhysics{
             return c4Count > 0;
         }
 
-        /** True if any convertor is actually changing something. */
         /** True if any module is actually bending the machine's stats. */
         public boolean hasMultipliers(){
             return !Mathf.equal(healthMultiplier, 1f, 0.001f)
@@ -351,6 +468,16 @@ public class ModularPhysics{
         /** Balance quality, as a percentage (100% = mass sits right over the drive parts). */
         public float balancePercent(){
             return balanceFactor * 100f;
+        }
+
+        /** Handling, as a percentage (100% = nominal turn rate for this mass and shape). */
+        public float turnPercent(){
+            return turnFactor * 100f;
+        }
+
+        /** Seconds to reach top speed, roughly - for display only. */
+        public float timeToSpeed(){
+            return accelRating <= 0.0001f ? 0f : 1f / (accelRating * 60f);
         }
     }
 }

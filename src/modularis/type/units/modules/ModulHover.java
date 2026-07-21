@@ -4,7 +4,7 @@ import arc.graphics.*;
 import arc.scene.ui.layout.*;
 import arc.util.*;
 
-public class ModulHover extends ModulWheel{
+public class ModulHover extends ModulPropulsor{
     /** Hard weight limit for lift-off. The best hover on the machine sets it. */
     public float maxWeight = 100f;
 
@@ -17,7 +17,8 @@ public class ModulHover extends ModulWheel{
 
     public ModulHover(String name){
         super(name);
-        category = ModuleCategory.wheel;
+        mode = PropulsionMode.hover;
+        grip = 0.12f;
         weight = 1.5f;
         health = 80f;
         powerUse = 1.2f;
@@ -25,9 +26,7 @@ public class ModulHover extends ModulWheel{
 
     @Override
     public void buildStats(Table table){
-        stat(table, "Top speed", Strings.autoFixed(moveSpeed, 2));
-        stat(table, "Haul capacity", Strings.autoFixed(haulWeight, 1) + " wt");
-        stat(table, "Turn", Strings.autoFixed(rotateSpeed, 1));
+        super.buildStats(table);
         stat(table, "Max weight", "[cyan]" + Strings.autoFixed(maxWeight, 0) + "[]");
     }
 }
