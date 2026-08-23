@@ -38,8 +38,6 @@ public class ModularUnitType extends UnitType{
 
     public static final float cellSize = spritePx / 4f;
 
-    public static final float[] shedThresholds = {0.7f, 0.5f, 0.2f};
-
     private final Vec2 tmp = new Vec2();
 
     public ModularUnitType(String name){
@@ -116,8 +114,6 @@ public class ModularUnitType extends UnitType{
         super.update(unit);
         if(!(unit instanceof ModularUnitEntity e) || e.design == null) return;
 
-        updateShedding(e);
-
         ModularPhysics.Stats stats = e.stats();
         if(stats == null) return;
 
@@ -188,22 +184,6 @@ public class ModularUnitType extends UnitType{
 
         float moveFrac = unit.vel().len() / Math.max(0.001f, speed);
         if(moveFrac > 0.12f && unit.elevation < 0.001f) emitWheelDust(unit, e.design, cell, cx, cy, rot, moveFrac);
-    }
-
-    private void updateShedding(ModularUnitEntity e){
-        float max = e.maxHealth();
-        if(max <= 0f || e.design == null) return;
-
-        float frac = e.health() / max;
-        int target = 0;
-        for(float th : shedThresholds){
-            if(frac <= th) target++;
-        }
-
-        while(e.shedCount < target){
-            e.shedCount++;
-            e.shedRandomModule(e.shedCount);
-        }
     }
 
     private void localOffset(PlacedModule m, float cell, float cx, float cy, Vec2 out){

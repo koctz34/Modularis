@@ -142,6 +142,18 @@ public class ModularDesign{
         color.set(other.color);
     }
 
+    public boolean isExposed(PlacedModule m){
+        for(int cx = m.x; cx < m.x + m.type.w; cx++){
+            for(int cy = m.y; cy < m.y + m.type.h; cy++){
+                if(get(cx - 1, cy) == null || get(cx + 1, cy) == null
+                    || get(cx, cy - 1) == null || get(cx, cy + 1) == null){
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     // ---- bounds (in cells) ----
 
     public int minX(){

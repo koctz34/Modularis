@@ -14,6 +14,7 @@ public class ModulEngine extends ModuleType{
         weight = 2f;
         health = 90f;
         powerProduction = 2f;
+        shedResistance = 0.5f;
     }
 
     @Override

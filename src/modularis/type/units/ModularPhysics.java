@@ -22,6 +22,16 @@ public class ModularPhysics{
     /** How sharply mobility drops once weight exceeds drive capacity. */
     public static final float loadExponent = 1.6f;
 
+    /** Drag a machine at {@link #lightWeight} gets: it stops more or less on the spot. */
+    public static final float lightDrag = 1.4f;
+    /** Drag a machine at {@link #heavyWeight} gets: it keeps rolling well past the throttle. */
+    public static final float heavyDrag = 0.45f;
+
+    /** Share of its grip a part that never touches the ground contributes. */
+    public static final float airborneGrip = 0.2f;
+    /** Fraction of sideways velocity a grip of 1 scrubs off per tick. */
+    public static final float lateralScrub = 0.22f;
+
     // ---- balance (centre of mass vs drive centroid) ----
     /** Imbalance (as a fraction of machine size) that is tolerated for free. */
     public static final float balanceTolerance = 0.15f;
@@ -45,6 +55,10 @@ public class ModularPhysics{
     public static final float turnBalanceFloor = 0.65f;
 
     public static final float steerLever = 2f;
+
+    // ---- skid steer (yaw resistance from ground contact) ----
+    public static final float skidResist = 0.2f;
+    public static final float minSteerShare = 0.08f;
 
     public static final float referenceDiscLoading = 0.6f;
     public static final float minLiftEfficiency = 0.35f, maxLiftEfficiency = 1.4f;
@@ -73,6 +87,12 @@ public class ModularPhysics{
             float mcx = pm.x + t.w / 2f, mcy = pm.y + t.h / 2f;
 
             if(t.category == ModuleCategory.root) s.hasRoot = true;
+
+            if(t.category == ModuleCategory.root || t.category == ModuleCategory.engine
+                || t.category == ModuleCategory.wheel || t.category == ModuleCategory.weapon){
+                s.criticalCount++;
+                if(design.isExposed(pm)) s.exposedCritical++;
+            }
 
             float mass = Math.max(t.weight, 0.0001f);
             comX += mcx * mass;
@@ -197,7 +217,7 @@ public class ModularPhysics{
         s.powerRatio = s.powerUse <= 0.0001f ? 1f : Mathf.clamp(s.powerProd / s.powerUse, 0f, 1f);
 
         // ---- pass 2: inertia and traction, both measured about the centre of mass ----
-        float inertia = 0f, steerTorque = 0f, driveForce = 0f;
+        float inertia = 0f, steerTorque = 0f, driveForce = 0f, gripSum = 0f, skidTorque = 0f;
         for(PlacedModule pm : design.modules){
             ModuleType t = pm.type;
             float mcx = pm.x + t.w / 2f, mcy = pm.y + t.h / 2f;
@@ -215,13 +235,22 @@ public class ModularPhysics{
             driveForce += Math.min(p.thrust(), traction);
             s.tractionForce += traction;
 
-            //steering torque: grip acting at a lever arm. Parts bunched around the centre of
-            //mass barely swing the hull; ones out at the ends of it swing it hard.
-            steerTorque += p.rotateSpeed * haul * p.grip * Mathf.clamp(lever / steerLever, 0.25f, 1.6f);
+            float contact = p.mode == PropulsionMode.ground ? 1f : airborneGrip;
+            gripSum += p.grip * contact * haul;
+
+            float steerLoad = p.mode == PropulsionMode.ground ? normal : haul;
+            steerTorque += p.rotateSpeed * p.steerGrip() * steerLoad * Mathf.clamp(lever / steerLever, 0.25f, 1.6f);
+
+            if(p.mode == PropulsionMode.ground){
+                skidTorque += p.grip * normal * Math.max(t.w, t.h) * skidResist;
+            }
         }
         s.inertia = inertia;
-        s.steerTorque = steerTorque;
+        s.skidTorque = skidTorque;
+        s.skidLoss = steerTorque > 0.0001f ? Mathf.clamp(skidTorque / steerTorque, 0f, 1f) : 0f;
+        s.steerTorque = Math.max(steerTorque - skidTorque, steerTorque * minSteerShare);
         s.driveForce = driveForce * s.powerRatio;
+        s.lateralGrip = rawCapacity > 0.0001f ? gripSum / rawCapacity : 0f;
 
         // 2. load: is there enough capacity to bear the mass?
         if(s.capacity <= 0.0001f || s.weight <= 0.0001f){
@@ -238,6 +267,8 @@ public class ModularPhysics{
         if(s.hovering()){
             s.weightFactor = 1f - (1f - s.weightFactor) * hoverWeightRelief;
         }
+
+        s.momentumFactor = Mathf.lerp(lightDrag, heavyDrag, wt);
 
         s.speedRating = s.topRating * s.loadFactor * s.weightFactor * s.balanceFactor
             * s.powerRatio * s.speedMod;
@@ -346,8 +377,16 @@ public class ModularPhysics{
         public int wheelCount;
         /** Modules bolted on but with no slot to run in: dead weight, no function. */
         public int inactiveCount;
+        /** Engines, drives, turrets and cores aboard. */
+        public int criticalCount;
+        /** How many of those a round can reach without going through anything else first. */
+        public int exposedCritical;
         public float weight, capacity;
         public float loadFactor, weightFactor, balanceFactor, balanceOffset;
+        /** Drag scale from sheer mass: below 1 the machine coasts, above 1 it stops dead. */
+        public float momentumFactor = 1f;
+        /** Capacity-weighted grip against sideways motion. 0 = slides freely. */
+        public float lateralGrip;
         public float powerProd, powerUse, powerRatio;
         public float topRating, speedRating;
 
@@ -362,8 +401,12 @@ public class ModularPhysics{
         //---- turning ----
         /** Rotational inertia about the centre of mass, sum(m * r^2). */
         public float inertia;
-        /** Steering torque the drive parts can generate. */
+        /** Steering torque left over once the drivetrain has fought its own skid resistance. */
         public float steerTorque;
+        /** Yaw resistance from dragging the contact patches sideways. */
+        public float skidTorque;
+        /** Fraction of the raw steering authority that skid resistance eats, 0..1. */
+        public float skidLoss;
         /** Handling quality, 1 = nominal. */
         public float turnFactor;
         /** Ready-made {@code UnitType.rotateSpeed}, in degrees per tick. */
@@ -430,9 +473,33 @@ public class ModularPhysics{
         }
 
         public float dragMultiplier(){
-            if(capacity <= 0f) return 1f;
-            float load = weight / capacity;
-            return Mathf.clamp(1f + Math.max(0f, load - 1f) * 0.6f, 1f, 3f);
+            float overload = capacity <= 0f ? 1f : Mathf.clamp(1f + Math.max(0f, weight / capacity - 1f) * 0.6f, 1f, 3f);
+            return Mathf.clamp(overload * momentumFactor, 0.25f, 3f);
+        }
+
+        public float mass(){
+            return ModularImpact.mass(weight);
+        }
+
+        public float lateralScrubRate(){
+            return Mathf.clamp(lateralGrip * lateralScrub, 0f, 0.6f);
+        }
+
+        public float spinDampRate(){
+            return Mathf.clamp(ModularImpact.spinDamping * (0.4f + lateralGrip), 0.02f, 0.6f);
+        }
+
+        public float grazeDamage(){
+            return ModularImpact.deflectMultiplier(0f, armor);
+        }
+
+        public float grazeRicochet(){
+            return ModularImpact.ricochetChance(0f, armor);
+        }
+
+        /** Damage this hull does by driving into something at its own top speed. */
+        public float ramDamage(){
+            return ModularImpact.ramDamage(weight, speedMultiplier() * baseSpeed);
         }
 
         /**

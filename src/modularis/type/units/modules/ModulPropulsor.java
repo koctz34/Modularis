@@ -1,5 +1,6 @@
 package modularis.type.units.modules;
 
+import arc.math.*;
 import arc.scene.ui.layout.*;
 import arc.util.*;
 
@@ -9,6 +10,8 @@ import arc.util.*;
 public class ModulPropulsor extends ModuleType{
     /** Fallback thrust for parts that don't set one, as a fraction of {@link #haulWeight}. */
     public static final float thrustPerHaul = 0.75f;
+
+    public static final float freeSteerScale = 1.6f;
 
     /** Which physics this part obeys, and how the machine ends up moving. */
     public PropulsionMode mode = PropulsionMode.ground;
@@ -32,6 +35,11 @@ public class ModulPropulsor extends ModuleType{
 
     public float thrust(){
         return thrust >= 0f ? thrust : haulWeight * thrustPerHaul;
+    }
+
+    public float steerGrip(){
+        if(mode == PropulsionMode.ground) return grip;
+        return thrust() / Math.max(haulWeight, 0.001f) * freeSteerScale;
     }
 
     public float lift(){

@@ -17,7 +17,7 @@ public class MdlFX{
 
     public static Effect bloodPuddle, workerBuild, wheelDust, menderPulse, turboSmoke,
         moduleDebrisFly, moduleDebrisRest, neoplasmLaserChargeSmall, shootFlame, drillSmoke, icbmFlame, nukeBlast,
-        poisonGasCloud;
+        poisonGasCloud, armorRicochet, armorPenetrate, ramSparks;
 
     public static final float poisonGasCloudLife = 60f * 15f;
 
@@ -298,5 +298,45 @@ public class MdlFX{
             Draw.reset();
         }).followParent(false);
         poisonGasCloud.clip = 120f;
+
+        armorRicochet = new Effect(18f, e -> {
+            Draw.color(Color.valueOf("ffe9a8"), Color.valueOf("b8823c"), e.fin());
+            Lines.stroke(1.3f * e.fout());
+            for(int i = 0; i < 4; i++){
+                float ang = e.rotation + Mathf.range(28f);
+                float len = Mathf.random(4f, 11f) * e.fout();
+                Lines.lineAngle(e.x, e.y, ang, len);
+            }
+            Draw.color(Color.white, Color.valueOf("ffd37f"), e.fin());
+            Draw.alpha(e.fout() * 0.8f);
+            Fill.circle(e.x, e.y, 1.6f * e.fout());
+            Draw.reset();
+        });
+
+        armorPenetrate = new Effect(16f, e -> {
+            Draw.color(Color.valueOf("fff2c4"), Color.valueOf("d4553f"), e.fin());
+            Draw.alpha(e.fout());
+            Fill.circle(e.x, e.y, 2.2f * e.fout());
+            Lines.stroke(1.1f * e.fout());
+            for(int i = 0; i < 3; i++){
+                float ang = e.rotation + 180f + Mathf.range(55f);
+                Lines.lineAngle(e.x, e.y, ang, Mathf.random(2f, 6f) * e.fout());
+            }
+            Draw.reset();
+        });
+
+        ramSparks = new Effect(24f, e -> {
+            Fx.rand.setSeed(e.id);
+            Draw.color(Color.valueOf("ffd9a0"), Color.valueOf("8a6a4a"), e.fin());
+            Lines.stroke(1.5f * e.fout());
+            for(int i = 0; i < 6; i++){
+                float ang = e.rotation + Fx.rand.range(75f);
+                float len = Fx.rand.random(3f, 13f) * e.fout();
+                Lines.lineAngle(e.x + Fx.rand.range(3f), e.y + Fx.rand.range(3f), ang, len);
+            }
+            Draw.color(Color.valueOf("6b5a4e"), e.fout() * 0.4f);
+            Fill.circle(e.x, e.y, 4f * e.fin());
+            Draw.reset();
+        });
     }
 }

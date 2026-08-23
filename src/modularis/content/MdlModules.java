@@ -223,7 +223,7 @@ public class MdlModules{
             moveSpeed = 1.8f;
             w = 1; h = 3;
             haulWeight = 9f;
-            rotateSpeed = 3.5f;
+            rotateSpeed = 4.4f;
 
             grip = 1.45f;
             powerUse = 1f;
@@ -235,7 +235,7 @@ public class MdlModules{
             moveSpeed = 1.7f;
             w = 1; h = 6;
             haulWeight = 19f;
-            rotateSpeed = 3f;
+            rotateSpeed = 4.2f;
             grip = 1.55f;
             powerUse = 2f;
         }});
@@ -246,7 +246,7 @@ public class MdlModules{
             moveSpeed = 1.7f;
             w = 2; h = 12;
             haulWeight = 42f;
-            rotateSpeed = 3f;
+            rotateSpeed = 4f;
             grip = 1.7f;
             powerUse = 7f;
         }});
@@ -430,10 +430,9 @@ public class MdlModules{
             weapon = new Weapon("modularis-gaber-bosh2x2"){{
                 rotate = true;
                 reload = 500f;
-                inaccuracy = 40f;
+                inaccuracy = 10f;
                 rotateSpeed = 4f;
                 recoil = 1f;
-                shootCone = 60f;
 
                 shootSound = Sounds.shootMissileSmall;
                 bullet = new ArtilleryBulletType(4f, 10){{
@@ -450,7 +449,7 @@ public class MdlModules{
                     BulletType cloudPulse = new BulletType(0.001f, 0){{
                         lifetime = 1f;
                         instantDisappear = true;
-                        splashDamage = 15f;
+                        splashDamage = 40f;
                         splashDamageRadius = 70f;
                         status = StatusEffects.corroded;
                         statusDuration = 60f * 4f;
@@ -687,8 +686,8 @@ public class MdlModules{
                     height = 32f;
                     lifetime = 500f;
                     hitSize = 1f;
-                    splashDamageRadius = 300f;
-                    splashDamage = 15000f;
+                    splashDamageRadius = 600f;
+                    splashDamage = 12000f;
                     trailLength = 3;
                     trailWidth = 0.5f;
 
@@ -855,7 +854,7 @@ public class MdlModules{
             slotCost = 3;
             weapon = new Weapon("modularis-minelayer2x3"){{
                 rotate = true;
-                reload = 500f;
+                reload = 400f;
                 inaccuracy = 80f;
                 rotateSpeed = 20f;
                 shootY = 0;
@@ -884,7 +883,7 @@ public class MdlModules{
                     collidesAir = false;
                     collidesGround = true;
                     layer = Layer.debris;
-                    lifetime = 15000f;
+                    lifetime = 6000f;
 
                     despawnEffect = Fx.massiveExplosion;
                     hitEffect = Fx.massiveExplosion;

@@ -10,5 +10,6 @@ public class ModulBase extends ModuleType{
         category = ModuleCategory.base;
         weight = 1f;
         health = 160f;
+        shedResistance = 0.3f;
     }
 }

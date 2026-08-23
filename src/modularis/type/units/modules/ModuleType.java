@@ -36,6 +36,8 @@ public class ModuleType{
     /** Power drained each tick while active. */
     public float powerUse = 0f;
 
+    public float shedResistance = 1f;
+
     /** Max number of this module allowed on one machine. -1 = unlimited. */
     public int limit = -1;
 
@@ -173,6 +175,10 @@ public class ModuleType{
         if(armor > 0) stat(table, "Armor", Strings.autoFixed(armor, 0));
         if(powerProduction > 0) stat(table, "Power +", Strings.autoFixed(powerProduction * 60f, 1) + "/s");
         if(powerUse > 0) stat(table, "Power -", Strings.autoFixed(powerUse * 60f, 1) + "/s");
+
+        float blowOff = ModularImpact.shedChance(ModularImpact.shedReferenceDamage, this) * 100f;
+        stat(table, "Blow-off risk", (blowOff > 15f ? "[scarlet]" : blowOff > 5f ? "[orange]" : "[lime]")
+            + Strings.autoFixed(blowOff, 1) + "%[] per 100 dmg hit");
         if(limit >= 0) stat(table, "Max per machine", "" + limit);
         if(slot != SlotType.none) stat(table, "Slots needed", slotCost + " " + slot.title.toLowerCase());
         if(cargoCapacity > 0) stat(table, "Cargo capacity", Strings.autoFixed(cargoCapacity, 0));

@@ -29,6 +29,7 @@ public class ModularConstructorEditor extends BaseDialog{
 
     private ModularDesign design = new ModularDesign();
     private @Nullable ModuleType selected;
+    private boolean showCenterOfMass = true;
 
     private final Seq<ModBtn> buttonRefs = new Seq<>();
     private final Table infoTable = new Table();
@@ -107,6 +108,10 @@ public class ModularConstructorEditor extends BaseDialog{
             ModularDesign target = design;
             ui.picker.show(target.color, false, c -> target.color.set(c));
         }).size(160f, 55f);
+
+        TextButton comButton = buttons.button("Center", Icon.eye, Styles.togglet,
+            () -> showCenterOfMass = !showCenterOfMass).size(160f, 55f).get();
+        comButton.update(() -> comButton.setChecked(showCenterOfMass));
     }
 
     private void buildList(Table list){
@@ -224,6 +229,14 @@ public class ModularConstructorEditor extends BaseDialog{
                 .append(Strings.autoFixed(s.turnPercent(), 0)).append("%[]\n");
         }
 
+        //skid steer: long contact patches have to be dragged sideways to turn at all, so
+        //this is where a machine on huge tracks loses its handling
+        if(s.skidLoss > 0.01f){
+            String kcol = s.skidLoss > 0.6f ? "[scarlet]" : s.skidLoss > 0.3f ? "[orange]" : "[lightgray]";
+            sb.append("Skid drag: ").append(kcol)
+                .append(Strings.autoFixed(s.skidLoss * 100f, 0)).append("%[] of steering\n");
+        }
+
         //traction: is the drivetrain able to put its force down, or is it just spinning?
         if(s.hasGroundDrive){
             String gcol = s.slipping ? "[scarlet]" : "[lightgray]";
@@ -232,6 +245,14 @@ public class ModularConstructorEditor extends BaseDialog{
                 .append(Strings.autoFixed(s.tractionForce, 1)).append("[]");
             if(s.slipping) sb.append(" [scarlet]slipping[]");
             sb.append('\n');
+        }
+
+        if(s.hasWheels){
+            String gcol = s.lateralGrip < 0.3f ? "[orange]" : "[lightgray]";
+            sb.append("Sideways grip: ").append(gcol)
+                .append(Strings.autoFixed(s.lateralGrip * 100f, 0)).append("%[]\n");
+            sb.append("Momentum: [lightgray]x")
+                .append(Strings.autoFixed(1f / Math.max(s.momentumFactor, 0.01f), 2)).append("[]\n");
         }
 
         //hover lift limit
@@ -443,6 +464,7 @@ public class ModularConstructorEditor extends BaseDialog{
 
             drawGrid();
             drawModules();
+            drawCenterOfMass();
             drawGhost();
 
             clipEnd();
@@ -523,6 +545,24 @@ public class ModularConstructorEditor extends BaseDialog{
                     Fill.crect(sx - w / 2f, sy - h / 2f, w, h);
                 }
             }
+            Draw.reset();
+        }
+
+        void drawCenterOfMass(){
+            if(!showCenterOfMass || design.isEmpty()) return;
+
+            ModularPhysics.Stats s = ModularPhysics.compute(design);
+            float cp = cellPx();
+            float sx = screenX(s.centerX), sy = screenY(s.centerY);
+            float r = Math.max(5f, cp * 0.26f);
+
+            Draw.color(Pal.lightOrange);
+            Lines.stroke(2.4f);
+            Lines.circle(sx, sy, r);
+            Lines.line(sx - r * 1.7f, sy, sx - r * 0.4f, sy);
+            Lines.line(sx + r * 0.4f, sy, sx + r * 1.7f, sy);
+            Lines.line(sx, sy - r * 1.7f, sx, sy - r * 0.4f);
+            Lines.line(sx, sy + r * 0.4f, sx, sy + r * 1.7f);
             Draw.reset();
         }
 

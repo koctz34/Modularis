@@ -125,6 +125,7 @@ public class MdlMod extends Mod{
     public void loadContent(){
         Log.info("[stat][Modularis] [orange]Loading content.");
         MdlFX.load();
+        MdlBullets.load();
         MdlItems.load();
         MdlModules.load();
         MdlUnits.load();

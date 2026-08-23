@@ -10,6 +10,7 @@ import mindustry.ai.types.*;
 import mindustry.content.*;
 import mindustry.entities.*;
 import mindustry.entities.abilities.*;
+import mindustry.entities.bullet.*;
 import mindustry.entities.units.*;
 import mindustry.gen.*;
 import mindustry.type.*;
@@ -45,6 +46,25 @@ public class ModularUnitEntity extends TankUnit{
 
     public float weaponRangeMin = -1f;
     public float weaponRangeMax = -1f;
+
+    // ---- impact physics (see ModularImpact); all transient, it re-derives itself ----
+    /** Hull spin from hits and recoil, in degrees per tick, on top of whatever the driver wants. */
+    public transient float spin;
+    /** Ticks left before this hull can hurt something by driving into it again. */
+    public transient float ramCooldown;
+
+    /** Round that has cleared the collision test but not yet applied its damage. */
+    private transient @Nullable Bullet pendingBullet;
+    private transient float pendingMultiplier = 1f, pendingTime = -1f;
+    /** Where that round was, and where it was going, when the hulls met. */
+    private transient float pendingHitX, pendingHitY, pendingAngle;
+    private transient boolean pendingRicochet, pendingApplied;
+
+    /** Scratch for the ray march through the design; Tmp is too easily trodden on here. */
+    private final transient Vec2 rayVec = new Vec2();
+
+    /** Per-mount shot counters, so we can spot the tick a gun actually fired. */
+    private transient int[] lastShots = {};
 
     /** Item capacity summed from this machine's cargo modules. */
     public int cargoCapacity;
@@ -179,6 +199,8 @@ public class ModularUnitEntity extends TankUnit{
         }
 
         mounts = weaponMounts.toArray(WeaponMount.class);
+        lastShots = new int[mounts.length];
+        for(int i = 0; i < mounts.length; i++) lastShots[i] = mounts[i].totalShots;
 
         abilities = abils.toArray(Ability.class);
         for(Ability a : abilities){
@@ -221,6 +243,8 @@ public class ModularUnitEntity extends TankUnit{
         boostMultiplier = s == null ? 1f : s.boostMultiplier;
 
         movementMode = s == null ? PropulsionMode.ground : s.mode();
+
+        if(physref != null && physref.body != null) physref.body.mass = mass();
     }
 
     @Override
@@ -240,6 +264,228 @@ public class ModularUnitEntity extends TankUnit{
             mt.applyMovementMode(this);
         }
         super.update();
+        updateImpactPhysics();
+    }
+
+    // ---- impact physics ----
+    private void updateImpactPhysics(){
+        ModularPhysics.Stats s = stats();
+        if(s == null) return;
+
+        updateRecoil(s);
+        updateRamming(s);
+        updateLateralGrip(s);
+
+        if(Math.abs(spin) > ModularImpact.spinEpsilon){
+            if(!net.client() || isLocal()){
+                rotation += spin * Time.delta;
+            }
+            spin *= 1f - Math.min(s.spinDampRate() * Time.delta, 1f);
+        }else{
+            spin = 0f;
+        }
+    }
+
+    private void updateLateralGrip(ModularPhysics.Stats s){
+        if(movementMode != PropulsionMode.ground) return;
+
+        float scrub = s.lateralScrubRate();
+        if(scrub <= 0.001f) return;
+
+        Vec2 v = vel();
+        float fx = Mathf.cosDeg(rotation), fy = Mathf.sinDeg(rotation);
+        float along = v.x * fx + v.y * fy;
+
+        float sx = v.x - along * fx, sy = v.y - along * fy;
+        float keep = 1f - Math.min(scrub * Time.delta, 1f);
+        v.set(along * fx + sx * keep, along * fy + sy * keep);
+    }
+
+    public Vec2 comOffset(Vec2 out){
+        ModularPhysics.Stats s = stats();
+        if(s == null || design == null) return out.setZero();
+
+        float cell = ModularUnitType.cellWorld();
+        return out.set((s.centerX - originX) * cell, (s.centerY - originY) * cell).rotate(rotation - 90f);
+    }
+
+    private void updateRecoil(ModularPhysics.Stats s){
+        if(mounts == null || mounts.length == 0) return;
+        if(lastShots.length != mounts.length) lastShots = new int[mounts.length];
+
+        comOffset(Tmp.v3);
+        float topSpeed = type == null ? 1f : type.speed * Math.max(s.speedMultiplier(), 0.1f);
+
+        for(int i = 0; i < mounts.length; i++){
+            WeaponMount mount = mounts[i];
+            if(mount == null || mount.weapon == null) continue;
+
+            int fired = mount.totalShots - lastShots[i];
+            lastShots[i] = mount.totalShots;
+            if(fired <= 0 || mount.weapon.bullet == null) continue;
+
+            Weapon w = mount.weapon;
+            BulletType bt = w.bullet;
+            float kick = ModularImpact.momentum(bt, bt.damage, bt.speed)
+                * ModularImpact.recoilTransfer * Math.min(fired, 4);
+            if(kick <= 0.01f) continue;
+
+            //the barrel points along weaponRotation + 90, so the hull is shoved the other way
+            float barrel = rotation + (w.rotate ? mount.rotation : w.baseRotation);
+            Tmp.v1.trns(barrel + 180f, kick);
+            ModularImpact.clampImpulse(Tmp.v1, mass(), topSpeed);
+            impulse(Tmp.v1);
+
+            Tmp.v2.set(w.x, w.y).rotate(rotation - 90f).sub(Tmp.v3);
+            spin = Mathf.clamp(spin + ModularImpact.spinFrom(Tmp.v2.x, Tmp.v2.y, Tmp.v1.x, Tmp.v1.y, s.inertia),
+                -ModularImpact.maxSpin, ModularImpact.maxSpin);
+        }
+    }
+
+    private void updateRamming(ModularPhysics.Stats s){
+        ramCooldown -= Time.delta;
+        if(net.client() || ramCooldown > 0f || dead() || design == null) return;
+
+        float speed = vel().len();
+        if(speed < ModularImpact.ramMinSpeed) return;
+
+        float reach = hitSize() / 2f;
+        Units.nearbyEnemies(team, x, y, reach, other -> {
+            if(other == this || other.dead() || ramCooldown > 0f) return;
+
+            Tmp.v1.set(vel()).sub(other.vel());
+            Tmp.v2.set(other.x - x, other.y - y);
+            if(Tmp.v2.len() < 0.01f) return;
+
+            float closing = Tmp.v1.dot(Tmp.v2.nor());
+            float damage = ModularImpact.ramDamage(s.weight, closing);
+            if(damage <= 1f) return;
+
+            ramCooldown = ModularImpact.ramInterval;
+
+            float hx = x + Tmp.v2.x * reach, hy = y + Tmp.v2.y * reach;
+            other.damage(damage);
+            damage(damage * ModularImpact.ramSelfDamage * Mathf.clamp(other.mass() / Math.max(mass(), 1f), 0f, 1f));
+
+            Tmp.v3.set(Tmp.v2).scl(ModularImpact.momentumScale * s.weight * closing);
+            other.impulse(Tmp.v3);
+            impulse(Tmp.v3.scl(-0.5f));
+
+            MdlFX.ramSparks.at(hx, hy, Tmp.v2.angle());
+            Sounds.rockBreak.at(hx, hy, Mathf.random(0.7f, 1.1f));
+            Effect.shake(Math.min(damage / 30f, 4f), 10f, hx, hy);
+        });
+    }
+
+    @Override
+    public float mass(){
+        ModularPhysics.Stats s = stats();
+        return s == null ? super.mass() : s.mass();
+    }
+
+    @Override
+    public boolean collides(Hitboxc other){
+        boolean result = super.collides(other);
+        if(result && other instanceof Bullet b) prepareImpact(b);
+        return result;
+    }
+
+    private void prepareImpact(Bullet b){
+        ModularPhysics.Stats s = stats();
+        if(s == null || b.type == null){
+            pendingBullet = null;
+            return;
+        }
+
+        float incidence = ModularImpact.incidence(x, y, b.x, b.y, b.rotation(),
+            hitSize() * ModularImpact.hullRadiusScale);
+        float multiplier = ModularImpact.deflectMultiplier(incidence, s.armor);
+        boolean ricochet = b.type != MdlBullets.ricochet
+            && Mathf.chance(ModularImpact.ricochetChance(incidence, s.armor));
+        if(ricochet) multiplier = Math.min(multiplier, ModularImpact.ricochetDamage);
+
+        pendingBullet = b;
+        pendingTime = Time.time;
+        pendingMultiplier = multiplier;
+        pendingRicochet = ricochet;
+        pendingApplied = false;
+        pendingHitX = b.x;
+        pendingHitY = b.y;
+        pendingAngle = b.rotation();
+    }
+
+    @Override
+    public void rawDamage(float amount){
+        if(pendingBullet != null && !pendingApplied && Mathf.equal(pendingTime, Time.time)){
+            pendingApplied = true;
+            amount *= pendingMultiplier;
+        }
+        super.rawDamage(amount);
+        rollShed(amount);
+    }
+
+    @Override
+    public void collision(Hitboxc other, float cx, float cy){
+        super.collision(other, cx, cy);
+        if(other instanceof Bullet b) impact(b, cx, cy);
+    }
+
+    private void impact(Bullet b, float hx, float hy){
+        ModularPhysics.Stats s = stats();
+        if(s == null || b.type == null) return;
+
+        boolean ricochet = pendingBullet == b && pendingRicochet;
+        pendingBullet = null;
+
+        float travel = b.rotation();
+        float momentum = ModularImpact.momentum(b.type, b.damage, b.vel().len());
+        float topSpeed = type == null ? 1f : type.speed * Math.max(s.speedMultiplier(), 0.1f);
+
+        if(ricochet) momentum *= 0.35f;
+
+        Tmp.v1.trns(travel, momentum);
+        ModularImpact.clampImpulse(Tmp.v1, mass(), topSpeed);
+        impulse(Tmp.v1);
+
+        comOffset(Tmp.v2);
+        float leverX = hx - (x + Tmp.v2.x), leverY = hy - (y + Tmp.v2.y);
+        spin = Mathf.clamp(spin + ModularImpact.spinFrom(leverX, leverY, Tmp.v1.x, Tmp.v1.y, s.inertia),
+            -ModularImpact.maxSpin, ModularImpact.maxSpin);
+
+        if(ricochet){
+            float out = reflect(travel, hx, hy);
+            MdlFX.armorRicochet.at(hx, hy, out);
+            spallOff(b, hx, hy, out);
+            if(Mathf.chance(0.35f)) Sounds.shieldHit.at(hx, hy, Mathf.random(1.4f, 1.9f), 0.5f);
+        }else{
+            MdlFX.armorPenetrate.at(hx, hy, travel);
+        }
+    }
+
+    private void spallOff(Bullet b, float hx, float hy, float angle){
+        BulletType spall = MdlBullets.ricochet;
+        if(spall == null) return;
+
+        float out = angle + Mathf.range(ModularImpact.spallSpread);
+        float sx = hx + Angles.trnsx(out, ModularImpact.spallOffset);
+        float sy = hy + Angles.trnsy(out, ModularImpact.spallOffset);
+
+        float share = b.damage * ModularImpact.spallDamage
+            / Math.max(spall.damageMultiplier(b), 0.01f);
+
+        spall.create(b.owner, b.team, sx, sy, out, Math.max(share, 1f), 1f, 1f, null);
+    }
+
+    private float reflect(float travel, float hx, float hy){
+        float nx = hx - x, ny = hy - y;
+        float len = Mathf.len(nx, ny);
+        if(len < 0.001f) return travel;
+        nx /= len;
+        ny /= len;
+
+        float dx = Mathf.cosDeg(travel), dy = Mathf.sinDeg(travel);
+        float dot = dx * nx + dy * ny;
+        return Mathf.angle(dx - 2f * dot * nx, dy - 2f * dot * ny);
     }
 
     @Override
@@ -398,14 +644,76 @@ public class ModularUnitEntity extends TankUnit{
         return !(m.type instanceof ModulTurret) && m.type.category != ModuleCategory.root;
     }
 
-    public void shedRandomModule(int seed){
-        if(design == null) return;
+    public Vec2 worldToCell(float wx, float wy, Vec2 out){
+        float cell = ModularUnitType.cellWorld();
+        return out.set(wx - x, wy - y).rotate(-(rotation - 90f)).scl(1f / cell).add(originX, originY);
+    }
 
-        Seq<PlacedModule> options = design.modules.select(this::canShed);
-        if(options.isEmpty()) return;
+    public @Nullable PlacedModule moduleAlongRay(float wx, float wy, float travelAngle){
+        if(design == null || design.isEmpty()) return null;
 
-        Rand rand = new Rand(id() * 7919L + seed);
-        removeModule(options.get(rand.random(options.size - 1)));
+        worldToCell(wx, wy, rayVec);
+        float px = rayVec.x, py = rayVec.y;
+
+        float local = travelAngle - (rotation - 90f);
+        float reach = Mathf.dst(px, py, originX, originY)
+            + (design.widthCells() + design.heightCells()) * 0.5f + 2f;
+        int steps = Math.min(Mathf.ceil(reach / ModularImpact.rayStep), ModularImpact.maxRaySteps);
+
+        PlacedModule ahead = march(px, py, local, steps);
+        if(ahead != null) return ahead;
+
+        return march(px, py, local + 180f, steps);
+    }
+
+    private @Nullable PlacedModule march(float px, float py, float angle, int steps){
+        float dx = Mathf.cosDeg(angle) * ModularImpact.rayStep;
+        float dy = Mathf.sinDeg(angle) * ModularImpact.rayStep;
+
+        for(int i = 0; i < steps; i++){
+            PlacedModule hit = design.get(Mathf.floor(px), Mathf.floor(py));
+            if(hit != null) return hit;
+            px += dx;
+            py += dy;
+        }
+        return null;
+    }
+
+    public @Nullable PlacedModule moduleNearest(float wx, float wy){
+        if(design == null) return null;
+
+        PlacedModule closest = null;
+        float bestDst = Float.MAX_VALUE;
+        for(PlacedModule m : design.modules){
+            modulePos(m, Tmp.v5);
+            float dst = Tmp.v5.dst2(wx, wy);
+            if(dst < bestDst){
+                bestDst = dst;
+                closest = m;
+            }
+        }
+        return closest;
+    }
+
+    private void rollShed(float damage){
+        if(damage < ModularImpact.minShedDamage) return;
+        if(net.client() || dead() || design == null || design.isEmpty()) return;
+
+        PlacedModule target = shedTarget();
+        if(target == null || !canShed(target)) return;
+        if(!Mathf.chance(ModularImpact.shedChance(damage, target.type))) return;
+
+        shedCount++;
+        removeModule(target);
+    }
+
+    private @Nullable PlacedModule shedTarget(){
+        if(pendingBullet != null && Mathf.equal(pendingTime, Time.time)){
+            PlacedModule along = moduleAlongRay(pendingHitX, pendingHitY, pendingAngle);
+            return along != null ? along : moduleNearest(pendingHitX, pendingHitY);
+        }
+
+        return design.modules.isEmpty() ? null : design.modules.random();
     }
 
     public void tearOffModule(){
@@ -418,6 +726,9 @@ public class ModularUnitEntity extends TankUnit{
     }
 
     private void removeModule(PlacedModule victim){
+        modulePos(victim, Tmp.v6);
+        Sounds.explosionDull.at(Tmp.v6.x, Tmp.v6.y, Mathf.random(0.9f, 1.2f), 0.6f);
+
         launchDebris(victim);
         design.modules.remove(victim);
         rebuildMounts();
