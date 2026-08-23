@@ -60,14 +60,32 @@ tasks.register('jarAndroid'){
 
         if(!platformRoot) throw new GradleException("No android.jar found. Ensure that you have an Android platform installed.")
 
-        //collect dependencies needed for desugaring
-        def dependencies = (configurations.compileClasspath.asList() + configurations.runtimeClasspath.asList() + [new File(platformRoot, "android.jar")]).collect{ "--classpath $it.path" }.join(" ")
+        def d8Name = isWindows ? "d8.bat" : "d8"
 
-        def d8 = isWindows ? "d8.bat" : "d8"
+        def buildToolsRoot = new File("$sdkRoot/build-tools/")
+        def d8Dirs = !buildToolsRoot.isDirectory() ? [] : buildToolsRoot.listFiles()
+                .findAll{ new File(it, d8Name).exists() }
+                .sort{ it.name.tokenize('.').collect{ part -> part.padLeft(6, '0') }.join('.') }
 
-        //dex and desugar files - this requires d8 in your PATH
-        def process = "$d8 $dependencies --min-api 14 --output ${projectName}Android.jar ${projectName}Desktop.jar"
-                .execute(null, new File("build/libs"))
+        def d8 = d8Dirs ? new File(d8Dirs.last(), d8Name).absolutePath : d8Name
+
+        def command = [d8]
+        (configurations.compileClasspath.asList() + configurations.runtimeClasspath.asList()
+                + [new File(platformRoot, "android.jar")]).each{
+            command << "--classpath" << it.path
+        }
+        command << "--min-api" << "14"
+        command << "--output" << "${projectName}Android.jar".toString()
+        command << "${projectName}Desktop.jar".toString()
+
+        //dex and desugar
+        def process
+        try{
+            process = command.execute(null, new File("build/libs"))
+        }catch(IOException e){
+            throw new GradleException("Could not run '$d8'. Install the Android SDK build-tools " +
+                    "(sdkmanager \"build-tools;36.1.0\") or put d8 on your PATH.", e)
+        }
         process.waitForProcessOutput(System.out, System.err)
 
         if(process.exitValue() != 0){
