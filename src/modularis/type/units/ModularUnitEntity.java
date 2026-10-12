@@ -243,8 +243,6 @@ public class ModularUnitEntity extends TankUnit{
         boostMultiplier = s == null ? 1f : s.boostMultiplier;
 
         movementMode = s == null ? PropulsionMode.ground : s.mode();
-
-        if(physref != null && physref.body != null) physref.body.mass = mass();
     }
 
     @Override
