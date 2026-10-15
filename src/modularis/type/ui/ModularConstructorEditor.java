@@ -39,6 +39,11 @@ public class ModularConstructorEditor extends BaseDialog{
     private Canvas canvas;
     private @Nullable Runnable onSave;
 
+    /** Roughly one category header plus one row of part buttons. */
+    private static final float listMin = 90f, listPref = 300f;
+    /** Readouts never shrink below about two lines, nor grow past their old desktop size. */
+    private static final float readoutMin = 46f, readoutPref = 150f;
+
     public ModularConstructorEditor(){
         super("Modular Editor");
         MdlModules.load();
@@ -73,18 +78,20 @@ public class ModularConstructorEditor extends BaseDialog{
             Table list = new Table();
             list.top();
             buildList(list);
-            ScrollPane pane = new ScrollPane(list, Styles.smallPane);
+            ScrollPane pane = fixedPane(list, listPref);
             pane.setScrollingDisabled(true, false);
             pane.setFadeScrollBars(false);
-            left.add(pane).grow().pad(4f).row();
+            left.add(pane).grow().minHeight(listMin).pad(4f).row();
 
             //hovered / selected module stats - FIXED height so hovering never reflows the
             //list above it (that reflow used to bounce the cursor off the button = flicker)
             infoTable.top().left();
             infoTable.update(this::refreshInfo);
-            ScrollPane infoPane = new ScrollPane(infoTable, Styles.smallPane);
+            ScrollPane infoPane = fixedPane(infoTable, readoutPref);
+            //vertical only, so long text wraps to the pane instead of running off its edge
+            infoPane.setScrollingDisabled(true, false);
             infoPane.setFadeScrollBars(false);
-            left.add(infoPane).growX().height(150f).pad(4f).row();
+            left.add(infoPane).growX().minHeight(readoutMin).maxHeight(readoutPref).pad(4f).row();
 
             //always-on machine physics readout, also fixed height
             left.image().color(Pal.gray).height(2f).growX().pad(2f).row();
@@ -92,9 +99,10 @@ public class ModularConstructorEditor extends BaseDialog{
             Table machine = new Table();
             machine.left().top();
             machine.labelWrap(this::machineSummary).growX().left();
-            ScrollPane machinePane = new ScrollPane(machine, Styles.smallPane);
+            ScrollPane machinePane = fixedPane(machine, readoutPref);
+            machinePane.setScrollingDisabled(true, false);
             machinePane.setFadeScrollBars(false);
-            left.add(machinePane).growX().height(150f).pad(4f).row();
+            left.add(machinePane).growX().minHeight(readoutMin).maxHeight(readoutPref).pad(4f).row();
         }).width(320f).growY();
 
         canvas = new Canvas();
@@ -112,6 +120,15 @@ public class ModularConstructorEditor extends BaseDialog{
         TextButton comButton = buttons.button("Center", Icon.eye, Styles.togglet,
             () -> showCenterOfMass = !showCenterOfMass).size(160f, 55f).get();
         comButton.update(() -> comButton.setChecked(showCenterOfMass));
+    }
+
+    private static ScrollPane fixedPane(Element content, float prefHeight){
+        return new ScrollPane(content, Styles.smallPane){
+            @Override
+            public float getPrefHeight(){
+                return Scl.scl(prefHeight);
+            }
+        };
     }
 
     private void buildList(Table list){
@@ -168,7 +185,9 @@ public class ModularConstructorEditor extends BaseDialog{
 
         infoTable.clear();
         if(show == null){
-            infoTable.add("Hover a module to see its stats,\nor pick one and place it on the grid.")
+            infoTable.add(mobile
+                    ? "Tap a module to see its stats,\nthen tap the grid to place it.\nDrag to pan, pinch to zoom."
+                    : "Hover a module to see its stats,\nor pick one and place it on the grid.")
                 .color(Pal.lightishGray).left().wrap().growX();
             return;
         }
@@ -352,11 +371,24 @@ public class ModularConstructorEditor extends BaseDialog{
         float pressLx, pressLy, lastLx, lastLy;
         boolean dragged;
 
+        static final float touchSlop = 10f;
+        final float[] touchX = new float[2], touchY = new float[2];
+        final boolean[] touchHeld = new boolean[2];
+        boolean touchPainting, touchPanning, pinching;
+        /** Set once a gesture has become a pinch: nothing it does afterwards may fire a tap. */
+        boolean gestureSpent;
+        float pinchStartDist, pinchStartZoom, pinchAnchorX, pinchAnchorY;
+
         Canvas(){
             touchable = Touchable.enabled;
             addListener(new InputListener(){
                 @Override
                 public boolean touchDown(InputEvent event, float mx, float my, int pointer, KeyCode button){
+                    if(mobile){
+                        touchDownMobile(mx, my, pointer);
+                        return true;
+                    }
+
                     pressLx = lastLx = hoverLx = mx;
                     pressLy = lastLy = hoverLy = my;
                     dragged = false;
@@ -372,6 +404,11 @@ public class ModularConstructorEditor extends BaseDialog{
 
                 @Override
                 public void touchDragged(InputEvent event, float mx, float my, int pointer){
+                    if(mobile){
+                        touchDraggedMobile(mx, my, pointer);
+                        return;
+                    }
+
                     float dx = mx - lastLx, dy = my - lastLy;
                     if(Math.abs(mx - pressLx) > 4f || Math.abs(my - pressLy) > 4f) dragged = true;
 
@@ -391,6 +428,11 @@ public class ModularConstructorEditor extends BaseDialog{
 
                 @Override
                 public void touchUp(InputEvent event, float mx, float my, int pointer, KeyCode button){
+                    if(mobile){
+                        touchUpMobile(pointer);
+                        return;
+                    }
+
                     //right click with no drag cancels the current selection
                     if(button == KeyCode.mouseRight && !dragged) selected = null;
                     panning = false;
@@ -414,6 +456,104 @@ public class ModularConstructorEditor extends BaseDialog{
                     return true;
                 }
             });
+        }
+
+        void touchDownMobile(float mx, float my, int pointer){
+            if(pointer > 1) return; //a third finger is just ignored
+
+            touchX[pointer] = mx;
+            touchY[pointer] = my;
+            touchHeld[pointer] = true;
+            hoverLx = mx;
+            hoverLy = my;
+
+            if(pointer == 0){
+                pressLx = lastLx = mx;
+                pressLy = lastLy = my;
+                dragged = gestureSpent = false;
+                touchPainting = touchPanning = false;
+            }else if(touchHeld[0]){
+                startPinch();
+            }
+        }
+
+        void startPinch(){
+            pinching = gestureSpent = true;
+            touchPainting = touchPanning = false;
+
+            float cx = (touchX[0] + touchX[1]) / 2f, cy = (touchY[0] + touchY[1]) / 2f;
+            pinchStartDist = Math.max(Mathf.dst(touchX[0], touchY[0], touchX[1], touchY[1]), 1f);
+            pinchStartZoom = zoom;
+            //the grid cell under the fingers when the pinch began; it stays pinned under them
+            pinchAnchorX = cellX(cx);
+            pinchAnchorY = cellY(cy);
+        }
+
+        void touchDraggedMobile(float mx, float my, int pointer){
+            if(pointer > 1) return;
+
+            touchX[pointer] = mx;
+            touchY[pointer] = my;
+
+            if(pinching){
+                if(!touchHeld[0] || !touchHeld[1]) return;
+
+                float cx = (touchX[0] + touchX[1]) / 2f, cy = (touchY[0] + touchY[1]) / 2f;
+                float dist = Math.max(Mathf.dst(touchX[0], touchY[0], touchX[1], touchY[1]), 1f);
+                zoom = Mathf.clamp(pinchStartZoom * dist / pinchStartDist, minZoom, maxZoom);
+
+                //keeping the anchor cell under the fingers' midpoint zooms AND pans in one go
+                camX = pinchAnchorX - (cx - getWidth() / 2f) / cellPx();
+                camY = pinchAnchorY - (cy - getHeight() / 2f) / cellPx();
+                return;
+            }
+
+            if(pointer != 0 || gestureSpent) return;
+
+            hoverLx = mx;
+            hoverLy = my;
+
+            if(!touchPainting && !touchPanning){
+                float slop = Scl.scl(touchSlop);
+                if(Math.abs(mx - pressLx) <= slop && Math.abs(my - pressLy) <= slop) return; //still a tap
+
+                dragged = true;
+                if(selected != null){
+                    touchPainting = true;
+                    //the stroke started back at the press, so paint from there
+                    leftAction(pressLx, pressLy);
+                }else{
+                    touchPanning = true;
+                }
+            }
+
+            if(touchPainting){
+                leftAction(mx, my);
+            }else{
+                camX -= (mx - lastLx) / cellPx();
+                camY -= (my - lastLy) / cellPx();
+            }
+
+            lastLx = mx;
+            lastLy = my;
+        }
+
+        void touchUpMobile(int pointer){
+            if(pointer > 1) return;
+            touchHeld[pointer] = false;
+
+            if(pinching){
+                pinching = false;
+                return;
+            }
+
+            if(pointer != 0) return;
+
+            //a clean tap: place the selected part, or clear the cell when nothing is selected
+            if(!gestureSpent && !touchPainting && !touchPanning){
+                leftAction(pressLx, pressLy);
+            }
+            touchPainting = touchPanning = false;
         }
 
         void reset(){
