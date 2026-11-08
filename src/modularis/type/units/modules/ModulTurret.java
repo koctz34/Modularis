@@ -20,6 +20,8 @@ public class ModulTurret extends ModuleType{
     public String baseSprite = "base1x1";
 
     public boolean autoTarget = true;
+    /** Share of a shot's momentum that kicks the hull back. */
+    public float recoilScale = 1f;
 
     private TextureRegion baseRegion;
     private boolean bulletReady, weaponReady;

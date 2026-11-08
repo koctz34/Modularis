@@ -10,6 +10,7 @@ import arc.struct.*;
 import arc.util.*;
 import mindustry.gen.*;
 import mindustry.graphics.*;
+import modularis.content.*;
 import modularis.type.units.modules.*;
 
 import static mindustry.Vars.*;
@@ -17,7 +18,14 @@ import static mindustry.Vars.*;
 public class TowInteraction{
     public static final String packetName = "modularis-tow-link";
     public static final float selectRadius = 6f;
-    public static final float maxLinkLength = 24f;
+    public static final float maxLinkLength = 48f;
+
+    // ---- rope physics; numbers tuned against scratch sims of typical machine masses ----
+    public static final float ropeDamping = 0.15f;
+    public static final float breakStretch = 16f;
+    public static final float snapEffectStrain = 0.5f;
+
+    private static final Color ropeColor = Color.valueOf("242424"), strainedColor = Color.valueOf("e8502f");
 
     private static final Seq<TowLink> links = new Seq<>();
     private static final Vec2 sourcePos = new Vec2(), targetPos = new Vec2();
@@ -62,10 +70,23 @@ public class TowInteraction{
         restoreLinks();
         for(int i = links.size - 1; i >= 0; i--){
             TowLink link = links.get(i);
-            if(!link.valid()) removeLink(link);
+            if(!link.valid()){
+                //a client learns about a snap only from the slots emptying out
+                if(net.client() && link.strain >= snapEffectStrain) snapEffect(link);
+                removeLink(link);
+            }else if(net.client()){
+                link.readStrain();
+            }
         }
-        if(!net.client()){
-            for(TowLink link : links) link.updatePhysics();
+        if(!net.client() && !state.isPaused()){
+            for(int i = links.size - 1; i >= 0; i--){
+                TowLink link = links.get(i);
+                link.updatePhysics();
+                if(link.strain >= 1f){
+                    snapEffect(link);
+                    removeLink(link);
+                }
+            }
         }
         if(selectedUnit != null && (!selectedUnit.isAdded() || player == null || player.unit() != selectedUnit)) clearSelection();
     }
@@ -76,7 +97,7 @@ public class TowInteraction{
 
         for(TowLink link : links){
             link.positions(sourcePos, targetPos);
-            drawConnected(sourcePos.x, sourcePos.y, targetPos.x, targetPos.y, link.tension());
+            drawConnected(sourcePos.x, sourcePos.y, targetPos.x, targetPos.y, link.length, link.strain);
         }
 
         if(selectedUnit != null && selectedTow != null){
@@ -98,11 +119,21 @@ public class TowInteraction{
         Draw.reset();
     }
 
-    private static void drawConnected(float x1, float y1, float x2, float y2, float tension){
+    static void twist(ModularUnitEntity unit, Vec2 hitch, float impX, float impY){
+        ModularPhysics.Stats s = unit.stats();
+        if(s == null) return;
+
+        unit.comOffset(Tmp.v3);
+        float leverX = hitch.x - (unit.x + Tmp.v3.x), leverY = hitch.y - (unit.y + Tmp.v3.y);
+        unit.spin = Mathf.clamp(unit.spin + ModularImpact.spinFrom(leverX, leverY, impX, impY, s.inertia),
+            -ModularImpact.maxSpin, ModularImpact.maxSpin);
+    }
+
+    static void drawConnected(float x1, float y1, float x2, float y2, float length, float strain){
         float distance = Mathf.dst(x1, y1, x2, y2);
         int segments = Math.max(8, Mathf.ceil(distance / 2.5f));
-        float sag = Mathf.clamp(distance * 0.22f, 1.5f, 5f) * (1f - Mathf.clamp(tension));
-        Draw.color(Color.valueOf("242424"));
+        float sag = Mathf.clamp(distance * 0.22f, 1.5f, 8f) * (1f - Mathf.clamp(distance / Math.max(length, 0.001f)));
+        Draw.color(Tmp.c1.set(ropeColor).lerp(strainedColor, Mathf.clamp(strain)));
         Draw.alpha(1f);
         Lines.stroke(2.2f);
         float previousX = x1, previousY = y1;
@@ -178,11 +209,10 @@ public class TowInteraction{
             a.modulePos(towA, sourcePos);
             b.modulePos(towB, targetPos);
             if(sourcePos.dst(targetPos) <= maxLinkLength){
-                float length = sourcePos.dst(targetPos);
-                TowLink link = new TowLink(a, towA, b, towB, length);
+                TowLink link = new TowLink(a, towA, b, towB, maxLinkLength);
                 links.add(link);
-                setTow(a, towA, b, towB, length, 0f);
-                setTow(b, towB, a, towA, length, 0f);
+                setTow(a, towA, b, towB, maxLinkLength, 0f);
+                setTow(b, towB, a, towA, maxLinkLength, 0f);
             }
         }
     }
@@ -255,8 +285,27 @@ public class TowInteraction{
 
     private static void removeLink(TowLink link){
         links.remove(link);
+        if(net.client()) return;
         clearTow(link.a, link.towA);
         clearTow(link.b, link.towB);
+    }
+
+    private static void snapEffect(TowLink link){
+        link.positions(sourcePos, targetPos);
+        float mx = (sourcePos.x + targetPos.x) / 2f, my = (sourcePos.y + targetPos.y) / 2f;
+        MdlFX.towSnap.at(mx, my, Angles.angle(sourcePos.x, sourcePos.y, targetPos.x, targetPos.y));
+        Sounds.rockBreak.at(mx, my, Mathf.random(1.3f, 1.7f));
+    }
+
+    private static boolean hasSlot(ModularUnitEntity unit, PlacedModule tow, ModularUnitEntity other){
+        return slotOf(unit, tow, other) >= 0;
+    }
+
+    private static int slotOf(ModularUnitEntity unit, PlacedModule tow, ModularUnitEntity other){
+        for(int i = 0; i < 2; i++){
+            if(unit.towUnitIds[i] == other.id && unit.towXs[i] == tow.x && unit.towYs[i] == tow.y) return i;
+        }
+        return -1;
     }
 
     //NOT a record: D8 (--min-api 14) fails to desugar java.lang.Record on some Android SDK/
@@ -277,6 +326,8 @@ public class TowInteraction{
         final ModularUnitEntity a, b;
         final PlacedModule towA, towB;
         final float length;
+        /** Stretch as a share of {@link #breakStretch}. At 1 the rope parts. */
+        float strain;
 
         TowLink(ModularUnitEntity a, PlacedModule towA, ModularUnitEntity b, PlacedModule towB, float length){
             this.a = a;
@@ -299,8 +350,16 @@ public class TowInteraction{
         }
 
         boolean valid(){
-            return a.isAdded() && b.isAdded() && a.team == b.team && a.design != null && b.design != null &&
-                a.design.modules.contains(towA, true) && b.design.modules.contains(towB, true);
+            if(!(a.isAdded() && b.isAdded() && a.team == b.team && a.design != null && b.design != null &&
+                a.design.modules.contains(towA, true) && b.design.modules.contains(towB, true))) return false;
+
+            //the server decides when a rope is gone; a client has to notice the slots emptying
+            return !net.client() || (hasSlot(a, towA, b) && hasSlot(b, towB, a));
+        }
+
+        void readStrain(){
+            int slot = slotOf(a, towA, b);
+            if(slot >= 0) strain = a.towTensions[slot];
         }
 
         void positions(Vec2 outA, Vec2 outB){
@@ -308,16 +367,8 @@ public class TowInteraction{
             b.modulePos(towB, outB);
         }
 
-        float tension(){
-            if(net.client()){
-                for(int i = 0; i < 2; i++){
-                    if(a.towUnitIds[i] == b.id && a.towXs[i] == towA.x && a.towYs[i] == towA.y){
-                        return a.towTensions[i];
-                    }
-                }
-            }
-            positions(sourcePos, targetPos);
-            return Mathf.clamp((sourcePos.dst(targetPos) - length + 1.5f) / 1.5f);
+        float breakForce(){
+            return Math.max(Math.min(((ModulTow)towA.type).breakForce, ((ModulTow)towB.type).breakForce), 1f);
         }
 
         void updatePhysics(){
@@ -327,41 +378,26 @@ public class TowInteraction{
 
             float nx = (targetPos.x - sourcePos.x) / distance;
             float ny = (targetPos.y - sourcePos.y) / distance;
-            float massA = Math.max(a.design.totalWeight(), 1f);
-            float massB = Math.max(b.design.totalWeight(), 1f);
             float stretch = Math.max(distance - length, 0f);
-            float relative = (b.vel.x - a.vel.x) * nx + (b.vel.y - a.vel.y) * ny;
-            float force = stretch * 0.16f + Math.max(relative, 0f) * 0.28f;
-            float impulse = Mathf.clamp(force, 0f, 2.4f) * Time.delta;
-            float syncedTension = Mathf.clamp(force / 2.4f);
-            setTow(a, towA, b, towB, length, syncedTension);
-            setTow(b, towB, a, towA, length, syncedTension);
-            float total = massA + massB;
 
-            a.vel.add(nx * impulse * massB / total, ny * impulse * massB / total);
-            b.vel.add(-nx * impulse * massA / total, -ny * impulse * massA / total);
+            if(stretch > 0f){
+                float invA = 1f / Math.max(a.mass(), 1f), invB = 1f / Math.max(b.mass(), 1f);
+                float relative = (b.vel.x - a.vel.x) * nx + (b.vel.y - a.vel.y) * ny;
+                float spring = breakForce() / breakStretch * stretch * Time.delta;
+                float damper = relative * Math.min(ropeDamping * Time.delta, 1f) / (invA + invB);
+                float impulse = Math.max(spring + damper, 0f);
 
-            float excess = stretch;
-            if(excess > 0.5f){
-                float correction = Math.min(excess * 0.18f * Time.delta, 1.5f);
-                a.set(a.x + nx * correction * massB / total, a.y + ny * correction * massB / total);
-                b.set(b.x - nx * correction * massA / total, b.y - ny * correction * massA / total);
+                a.vel.add(nx * impulse * invA, ny * impulse * invA);
+                b.vel.add(-nx * impulse * invB, -ny * impulse * invB);
+                twist(a, sourcePos, nx * impulse, ny * impulse);
+                twist(b, targetPos, -nx * impulse, -ny * impulse);
             }
 
-            if(stretch > 0.05f){
-                rotateByTow(a, sourcePos, targetPos, massA, massB, stretch);
-                rotateByTow(b, targetPos, sourcePos, massB, massA, stretch);
-            }
+            strain = stretch / breakStretch;
+
+            setTow(a, towA, b, towB, length, strain);
+            setTow(b, towB, a, towA, length, strain);
         }
 
-        void rotateByTow(ModularUnitEntity unit, Vec2 hitch, Vec2 target, float ownMass, float otherMass, float stretch){
-            float hitchAngle = Angles.angle(unit.x, unit.y, hitch.x, hitch.y);
-            float pullAngle = Angles.angle(unit.x, unit.y, target.x, target.y);
-            float offset = Mathf.mod(pullAngle - hitchAngle + 180f, 360f) - 180f;
-            float leverage = Mathf.dst(unit.x, unit.y, hitch.x, hitch.y) / Math.max(ModularUnitType.cellWorld(), 0.001f);
-            float load = Mathf.clamp(stretch / 2f) * Mathf.clamp(leverage, 0.35f, 2.5f);
-            float massFactor = Mathf.clamp(otherMass / Math.max(ownMass, 1f), 0.4f, 2.5f);
-            unit.rotation += Mathf.clamp(offset, -1.8f, 1.8f) * Time.delta * load * massFactor;
-        }
     }
 }

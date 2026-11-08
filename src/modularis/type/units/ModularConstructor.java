@@ -77,15 +77,17 @@ public class ModularConstructor extends UnitBlock{
         public void createMachine(){
             if(design.isEmpty()) return;
 
-            //spawn clear of the (solid) block footprint so the tank isn't stuck inside it
-            float sy = y - (size / 2f + 1f) * tilesize;
-
             //what spawn() does, but with the design assigned BEFORE add(): from v160 on, add()
             //registers the physics body right away and it reads mass and hitSize exactly once,
             //so a design set afterwards left the body sized and weighted like an empty hull
             Unit unit = MdlUnits.modularUnit.create(team);
-            unit.set(x, sy);
+            unit.set(x, y);
             ModularUnitType.assign(unit, design);
+
+            //spawn clear of the (solid) block footprint so the tank isn't stuck inside it
+            unit.hitboxTile(Tmp.r1);
+            float sy = y - size * tilesize / 2f - Tmp.r1.height / 2f - 1f;
+            unit.set(x, sy);
             unit.add();
             createSound.at(x, sy, 1f, createSoundVolume);
         }

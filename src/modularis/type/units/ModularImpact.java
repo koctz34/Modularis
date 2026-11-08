@@ -72,6 +72,14 @@ public class ModularImpact{
     public static final float ramInterval = 26f;
     /** Share of the ram that comes back into the rammer, scaled by the mass it hit. */
     public static final float ramSelfDamage = 0.4f;
+    /** Closing speed a ram counts as at most while dashing; damage grows with its square. */
+    public static final float dashRamSpeed = 1.5f;
+    public static final float crashMinSpeed = 0.45f;
+    public static final float crashInterval = 30f;
+    public static final float crashBuildingSelf = 0.6f;
+    public static final float ramContactMemory = 45f;
+    public static final float ramSustainedShare = 0.05f;
+    public static final float ramBlockCone = 75f;
 
     public static float toughness(ModuleType type){
         return Math.max((type.health + type.armor * armorToughness) * type.shedResistance, 1f);
@@ -79,8 +87,17 @@ public class ModularImpact{
 
     public static float shedChance(float damage, ModuleType hit){
         if(hit == null || damage < minShedDamage) return 0f;
+        return chanceFor(damage, toughness(hit));
+    }
 
-        float ratio = damage / toughness(hit);
+    public static float shedChance(float damage, PlacedModule hit){
+        if(hit == null || damage < minShedDamage) return 0f;
+        float toughness = Math.max((hit.health() + hit.type.armor * armorToughness) * hit.type.shedResistance, 1f);
+        return chanceFor(damage, toughness);
+    }
+
+    private static float chanceFor(float damage, float toughness){
+        float ratio = damage / toughness;
         return Math.min(shedScale * (float)Math.pow(ratio, shedExponent), maxShedChance);
     }
 

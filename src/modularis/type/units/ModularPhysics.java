@@ -94,7 +94,7 @@ public class ModularPhysics{
                 if(design.isExposed(pm)) s.exposedCritical++;
             }
 
-            float mass = Math.max(t.weight, 0.0001f);
+            float mass = Math.max(pm.weight(), 0.0001f);
             comX += mcx * mass;
             comY += mcy * mass;
             massSum += mass;
@@ -110,6 +110,15 @@ public class ModularPhysics{
             s.powerUse += t.powerUse;
             s.cargoCapacity += t.cargoCapacity;
             s.buildSpeed += t.buildSpeed;
+
+            if(t instanceof ModulActive) s.activeCount++;
+
+            if(t instanceof ModulRam r){
+                s.hasRam = true;
+                s.ramMultiplier = Math.max(s.ramMultiplier, r.damageMultiplier);
+                s.ramTopSpeed = Math.max(s.ramTopSpeed, r.topSpeed);
+                s.ramSelfShare = Math.min(s.ramSelfShare, r.selfDamageShare);
+            }
 
             if(t instanceof ModulDrill d){
                 //the best drill sets what ore we can cut and how far we reach; speeds stack
@@ -223,7 +232,7 @@ public class ModularPhysics{
             float mcx = pm.x + t.w / 2f, mcy = pm.y + t.h / 2f;
             float lever = Mathf.dst(mcx, mcy, comX, comY);
 
-            inertia += Math.max(t.weight, 0.0001f) * lever * lever;
+            inertia += Math.max(pm.weight(), 0.0001f) * lever * lever;
 
             if(!design.isActive(pm) || !(t instanceof ModulPropulsor p)) continue;
 
@@ -375,6 +384,12 @@ public class ModularPhysics{
         }
 
         public int wheelCount;
+        /** Working active modules; each one is a charge. */
+        public int activeCount;
+
+        //---- ram blocks: the best one sets these, more of them only widen the front ----
+        public boolean hasRam;
+        public float ramMultiplier = 1f, ramTopSpeed, ramSelfShare = 1f;
         /** Modules bolted on but with no slot to run in: dead weight, no function. */
         public int inactiveCount;
         /** Engines, drives, turrets and cores aboard. */

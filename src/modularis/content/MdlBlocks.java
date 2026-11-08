@@ -43,13 +43,9 @@ import modularis.type.units.*;
 
 import static mindustry.Vars.*;
 import static mindustry.type.ItemStack.*;
-import static modularis.content.MdlItems.*;
 
 public class MdlBlocks{
     public static Block
-
-    // WALLS
-    zinkWall,
 
     // UNITS
     modularConstructor
@@ -57,14 +53,6 @@ public class MdlBlocks{
     ;
 
     public static void load(){
-        // WALLS
-        zinkWall = new Wall("zinc-wall"){{
-            requirements(Category.defense, with(zinc, 6));
-            localizedName = "Zinc Wall";
-            description = "Wall made of zinc.";
-            health = 100 * 4;
-        }};
-
         // UNITS
         modularConstructor = new ModularConstructor("creative-constructor"){{
             requirements(Category.units, BuildVisibility.sandboxOnly, with());

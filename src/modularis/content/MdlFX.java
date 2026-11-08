@@ -17,7 +17,7 @@ public class MdlFX{
 
     public static Effect bloodPuddle, workerBuild, wheelDust, menderPulse, turboSmoke,
         moduleDebrisFly, moduleDebrisRest, neoplasmLaserChargeSmall, shootFlame, drillSmoke, icbmFlame, nukeBlast,
-        poisonGasCloud, armorRicochet, armorPenetrate, ramSparks;
+        poisonGasCloud, armorRicochet, armorPenetrate, ramSparks, towSnap, dashBurst, dashDust;
 
     public static final float poisonGasCloudLife = 60f * 15f;
 
@@ -321,6 +321,53 @@ public class MdlFX{
             for(int i = 0; i < 3; i++){
                 float ang = e.rotation + 180f + Mathf.range(55f);
                 Lines.lineAngle(e.x, e.y, ang, Mathf.random(2f, 6f) * e.fout());
+            }
+            Draw.reset();
+        });
+
+        dashBurst = new Effect(24f, e -> {
+            Fx.rand.setSeed(e.id);
+            Draw.color(Color.white, e.color, Mathf.clamp(e.fin() * 2f));
+            Lines.stroke(2.4f * e.fout());
+            Lines.circle(e.x, e.y, 4f + e.finpow() * 18f);
+            Lines.stroke(1.4f * e.fout());
+            for(int i = 0; i < 7; i++){
+                float ang = e.rotation + 180f + Fx.rand.range(40f);
+                float dst = Fx.rand.random(4f, 22f) * e.finpow();
+                Lines.lineAngle(e.x + Angles.trnsx(ang, dst), e.y + Angles.trnsy(ang, dst), ang,
+                    Fx.rand.random(3f, 9f) * e.fout());
+            }
+            Draw.reset();
+        });
+
+        dashDust = new Effect(40f, e -> {
+            Fx.rand.setSeed(e.id);
+            Draw.color(Color.valueOf("9a8b73"), Color.valueOf("5a4c40"), e.fin());
+            Draw.alpha(0.7f * e.fout());
+            for(int i = 0; i < 3; i++){
+                float ang = e.rotation + 180f + Fx.rand.range(60f);
+                float dst = Fx.rand.random(2f, 11f) * e.finpow();
+                Fill.circle(e.x + Angles.trnsx(ang, dst), e.y + Angles.trnsy(ang, dst),
+                    (1.8f + Fx.rand.random(2.2f)) * e.fout());
+            }
+            Draw.reset();
+        }).layer(Layer.debris);
+
+        towSnap = new Effect(20f, e -> {
+            Fx.rand.setSeed(e.id);
+            Lines.stroke(2.2f * e.fout());
+            for(int side = 0; side < 2; side++){
+                float start = e.fin() * 12f, end = start + 9f * e.fout();
+                float ang = e.rotation + side * 180f;
+                Draw.color(Color.valueOf("e8502f"), Color.valueOf("242424"), e.fin());
+                Lines.line(e.x + Angles.trnsx(ang, start), e.y + Angles.trnsy(ang, start),
+                    e.x + Angles.trnsx(ang + Fx.rand.range(35f) * e.fin(), end),
+                    e.y + Angles.trnsy(ang + Fx.rand.range(35f) * e.fin(), end));
+            }
+            Draw.color(Color.valueOf("ffd9a0"), Color.gray, e.fin());
+            Lines.stroke(1f * e.fout());
+            for(int i = 0; i < 5; i++){
+                Lines.lineAngle(e.x, e.y, Fx.rand.random(360f), Fx.rand.random(2f, 8f) * e.fout());
             }
             Draw.reset();
         });

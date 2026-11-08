@@ -15,6 +15,7 @@ import mindustry.mod.Mods.*;
 import modularis.content.*;
 import modularis.type.units.*;
 import modularis.type.units.modules.*;
+import modularis.type.units.nav.*;
 
 import static mindustry.Vars.*;
 
@@ -34,15 +35,29 @@ public class MdlMod extends Mod{
         Events.run(Trigger.draw, CargoInteraction::drawOverlay);
         Events.run(Trigger.update, TowInteraction::update);
         Events.run(Trigger.draw, TowInteraction::draw);
+        Events.run(Trigger.update, ActiveInteraction::update);
+        Events.run(Trigger.update, ModularPathfinder::update);
+        Events.on(WorldLoadEvent.class, event -> ModularPathfinder.reset());
+        Events.on(TileChangeEvent.class, event -> {
+            if(!world.isGenerating()) ModularPathfinder.tileChanged(event.tile);
+        });
+        //input runs after the entity update, so without this a snapped hull would show for a frame
+        Events.run(Trigger.preDraw, () -> {
+            if(player != null && player.unit() instanceof ModularUnitEntity e) e.limitTurn();
+        });
+        ActiveInteraction.load();
         Events.on(ServerLoadEvent.class, event -> {
             netServer.addPacketHandler(CargoInteraction.packetName, CargoInteraction::handle);
             netServer.addPacketHandler(TowInteraction.packetName, TowInteraction::handle);
+            netServer.addPacketHandler(ActiveInteraction.packetName, ActiveInteraction::handle);
         });
         Events.on(ClientLoadEvent.class, event -> {
             CargoInteraction.installInput();
             TowInteraction.installInput();
+            ActiveInteraction.installHud();
             netServer.addPacketHandler(CargoInteraction.packetName, CargoInteraction::handle);
             netServer.addPacketHandler(TowInteraction.packetName, TowInteraction::handle);
+            netServer.addPacketHandler(ActiveInteraction.packetName, ActiveInteraction::handle);
         });
 
         Events.run(Trigger.afterGameUpdate, () -> {
@@ -71,7 +86,7 @@ public class MdlMod extends Mod{
         }
 
         ObjectMap<String, Pixmap> pixmaps = new ObjectMap<>();
-        for(ModuleType type : MdlModules.all){
+        for(ModuleType type : MdlModules.all.copy().addAll(MdlModules.cannonParts)){
             String sprite = type.bodySpriteName();
             if(pixmaps.containsKey(sprite)) continue;
 
@@ -126,7 +141,7 @@ public class MdlMod extends Mod{
         Log.info("[stat][Modularis] [orange]Loading content.");
         MdlFX.load();
         MdlBullets.load();
-        MdlItems.load();
+        MdlStances.load();
         MdlModules.load();
         MdlUnits.load();
         MdlBlocks.load();

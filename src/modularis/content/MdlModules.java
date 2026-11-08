@@ -16,6 +16,8 @@ import modularis.type.units.modules.*;
 public class MdlModules{
     /** All registered modules, in registration order. */
     public static final Seq<ModuleType> all = new Seq<>();
+    /** Cannon parts. Looked up by name like modules, but never offered in the machine editor. */
+    public static final Seq<ModuleType> cannonParts = new Seq<>();
     /** Fast name -> module lookup, used by design (de)serialization. */
     public static final ObjectMap<String, ModuleType> nameMap = new ObjectMap<>();
 
@@ -30,9 +32,13 @@ public class MdlModules{
         wheel, track, trackBig, trackGigant, hover,
         // weapons
         gun, discharger, cannon, sanguis, laculum, haberBosch, flamethrower, artillery, pierceCannon, wolfRae, interfector,
-        pointDefence, antiBallistic, buildTower, repairTower, airborne, minelayer,
+        ram, harpoon, pointDefence, antiBallistic, buildTower, repairTower, airborne, minelayer,
         // abilities
-        mender, pulsus, turboHeater, overclocker, compressor, reactiveArmorer, transformator, reformator,c4, shieldEmitter, jetEngine, drill, tow;
+        mender, pulsus, turboHeater, overclocker, compressor, reactiveArmorer, transformator, reformator,c4, shieldEmitter, jetEngine, drill, tow,
+        // active
+        dash,
+        // cannon hinges
+        hingeSmall, hingeMedium, hingeLarge;
 
     public static void load(){
         if(!all.isEmpty()) return;
@@ -266,17 +272,19 @@ public class MdlModules{
 
         // ---- Weapons ----
         gun = add(new ModulTurret("gun1x1"){{
-            localizedName = "Light Gun";
-            description = "A rotating autocannon turret.";
+            localizedName = "Machine Gun";
+            description = "Rotating machine gun: weak rounds, but a lot of them.";
+            recoilScale = 0.2f;
             weapon = new Weapon("modularis-gun1x1"){{
                 rotate = true;
-                reload = 19f;
-                inaccuracy = 3f;
-                rotateSpeed = 8f;
+                recoil = 0.6f;
+                reload = 6f;
+                inaccuracy = 5f;
+                rotateSpeed = 9f;
                 shootCone = 14f;
                 shootSound = Sounds.shoot;
-                bullet = new BasicBulletType(4f, 19f){{
-                    lifetime = 38f;
+                bullet = new BasicBulletType(5f, 8f){{
+                    lifetime = 32f;
                     width = 7f;
                     height = 9f;
                     shrinkY = 0.2f;
@@ -696,6 +704,37 @@ public class MdlModules{
             }};
         }});
 
+        ram = add(new ModulRam("ram2x3"){{
+            localizedName = "Ram";
+            description = "Spiked plate for driving into enemies. Mount it at the front.";
+            w = 3; h = 2;
+        }});
+
+        harpoon = add(new ModulHarpoon("harpoon2x3"){{
+            localizedName = "Harpoon";
+            description = "Hooks a unit and winches in the rope. The lighter machine does the travelling, "
+                + "and if the rope is pulled too hard it parts.";
+            baseSprite = "base2x3";
+            weight = 6f;
+            health = 220f;
+            w = 3; h = 2;
+            powerUse = 2.5f;
+            slotCost = 2;
+            weapon = new HarpoonWeapon("modularis-harpoon2x3"){{
+                rotate = true;
+                reload = 240f;
+                inaccuracy = 1f;
+                rotateSpeed = 5f;
+                shootCone = 6f;
+                shootY = 3.25f;
+                recoil = 1.5f;
+                shootSound = Sounds.shootMissile;
+                bullet = new HarpoonBulletType(5.5f, 35f){{
+                    lifetime = 36f;
+                }};
+            }};
+        }});
+
         pointDefence = add(new ModulTurret("point-defence1x2"){{
             localizedName = "Point defence";
             description = "Provides protection against projectiles.";
@@ -1090,12 +1129,112 @@ public class MdlModules{
             health = 50f;
             powerUse = 0.5f;
         }});
+
+        // ---- Cannon hinges ----
+        hingeSmall = add(new ModulHinge("hinge1x1"){{
+            localizedName = "Light Hinge";
+            description = "Small turret ring for a cannon you build yourself. Light guns only.";
+            weight = 1f;
+            health = 100f;
+            powerUse = 0.5f;
+            slotCost = 1;
+            radius = 3f;
+            weightLimit = 6f;
+            rotateSpeed = 9f;
+        }});
+
+        hingeMedium = add(new ModulHinge("hinge3x3"){{
+            localizedName = "Medium Hinge";
+            description = "Turret ring for medium cannons, or a cluster of light ones.";
+            w = 3; h = 3;
+            weight = 5f;
+            health = 400f;
+            powerUse = 2f;
+            slotCost = 3;
+            radius = 7f;
+            weightLimit = 24f;
+            rotateSpeed = 5f;
+        }});
+
+        hingeLarge = add(new ModulHinge("hinge6x6"){{
+            localizedName = "Heavy Hinge";
+            description = "Huge turret ring. The only one that can carry heavy calibers.";
+            w = 6; h = 6;
+            weight = 16f;
+            health = 1200f;
+            powerUse = 6f;
+            slotCost = 6;
+            radius = 12f;
+            weightLimit = 130f;
+            rotateSpeed = 2.6f;
+        }});
+
+        // ---- Cannon parts ----
+        part(new CannonPart("cannon-barrel-s1x1", CannonPart.Kind.barrel, 1){{
+            localizedName = "Light Barrel"; weight = 0.4f; health = 30f;
+        }});
+        part(new CannonPart("cannon-barrel-m1x2", CannonPart.Kind.barrel, 2){{
+            localizedName = "Medium Barrel"; w = 2; weight = 1.6f; health = 90f;
+        }});
+        part(new CannonPart("cannon-barrel-l1x3", CannonPart.Kind.barrel, 3){{
+            localizedName = "Heavy Barrel"; w = 3; weight = 5f; health = 250f;
+        }});
+        part(new CannonPart("cannon-breech-s1x1", CannonPart.Kind.breech, 1){{
+            localizedName = "Light Breech"; weight = 1.2f; health = 60f;
+        }});
+        part(new CannonPart("cannon-breech-m2x2", CannonPart.Kind.breech, 2){{
+            localizedName = "Medium Breech"; w = 2; h = 2; weight = 5f; health = 200f;
+        }});
+        part(new CannonPart("cannon-breech-l3x3", CannonPart.Kind.breech, 3){{
+            localizedName = "Heavy Breech"; w = 3; h = 3; weight = 16f; health = 600f;
+        }});
+        part(new CannonPart("cannon-plate1x1", CannonPart.Kind.armor, 0){{
+            localizedName = "Mantlet Plate"; weight = 0.8f; health = 120f; armor = 0.5f;
+        }});
+        part(new CannonPart("cannon-plate2x2", CannonPart.Kind.armor, 0){{
+            localizedName = "Big Mantlet Plate"; w = 2; h = 2; weight = 3f; health = 480f; armor = 1.5f;
+        }});
+        part(new CannonPart("cannon-autoloader1x1", CannonPart.Kind.autoloader, 0){{
+            localizedName = "Autoloader"; weight = 1.5f; health = 40f;
+        }});
+        part(new CannonPart("cannon-stabilizer2x1", CannonPart.Kind.stabilizer, 0){{
+            localizedName = "Stabilizer"; h = 2; weight = 1.2f; health = 40f;
+        }});
+        part(new CannonPart("cannon-motor1x1", CannonPart.Kind.motor, 0){{
+            localizedName = "Traverse Motor"; weight = 1f; health = 40f;
+        }});
+        part(new CannonPart("cannon-ammo-he1x1", CannonPart.Kind.ammoHE, 0){{
+            localizedName = "HE Rack"; weight = 0.6f; health = 30f;
+        }});
+        part(new CannonPart("cannon-sight1x1", CannonPart.Kind.sight, 0){{
+            localizedName = "Sight"; weight = 0.8f; health = 30f;
+        }});
+        part(new CannonPart("cannon-ammo-ap1x1", CannonPart.Kind.ammoAP, 0){{
+            localizedName = "AP Rack"; weight = 0.6f; health = 30f;
+        }});
+
+        // ---- Active ----
+        dash = add(new ModulDash("dash4x1"){{
+            localizedName = "Dash Thruster";
+            description = "Throws the machine forward on demand. Each extra thruster adds a charge.";
+            iconSprite = "dash-icon";
+            w = 1; h = 4;
+            weight = 2.5f;
+            health = 110f;
+            powerUse = 1.5f;
+            cooldown = 60f * 6f;
+        }});
     }
 
     private static <T extends ModuleType> T add(T type){
         all.add(type);
         nameMap.put(type.name, type);
         return type;
+    }
+
+    private static void part(ModuleType type){
+        cannonParts.add(type);
+        nameMap.put(type.name, type);
     }
 
     public static ModuleType byName(String name){

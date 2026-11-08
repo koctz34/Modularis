@@ -11,9 +11,15 @@ public class ModularDesign{
     public final Seq<PlacedModule> modules = new Seq<>();
 
     public final Color color = Color.white.cpy();
+    /** Cannon designs only: where the pivot sits, see {@link CannonSpec#cellPivot}. */
+    public float pivot = CannonSpec.cellPivot;
 
     public boolean isEmpty(){
         return modules.isEmpty();
+    }
+
+    public Color colorOf(PlacedModule m){
+        return m.color != null ? m.color : color;
     }
 
     public @Nullable PlacedModule get(int cx, int cy){
@@ -133,6 +139,7 @@ public class ModularDesign{
         ModularDesign out = new ModularDesign();
         for(PlacedModule m : modules) out.modules.add(m.copy());
         out.color.set(color);
+        out.pivot = pivot;
         return out;
     }
 
@@ -140,6 +147,7 @@ public class ModularDesign{
         modules.clear();
         for(PlacedModule m : other.modules) modules.add(m.copy());
         color.set(other.color);
+        pivot = other.pivot;
     }
 
     public boolean isExposed(PlacedModule m){
@@ -200,13 +208,13 @@ public class ModularDesign{
 
     public float totalWeight(){
         float v = 0f;
-        for(PlacedModule m : modules) v += m.type.weight;
+        for(PlacedModule m : modules) v += m.weight();
         return v;
     }
 
     public float totalHealth(){
         float v = 0f;
-        for(PlacedModule m : modules) v += m.type.health;
+        for(PlacedModule m : modules) v += m.health();
         return v;
     }
 
@@ -245,7 +253,19 @@ public class ModularDesign{
         StringBuilder sb = new StringBuilder();
         sb.append('#').append(color.toString()).append(';');
         for(PlacedModule m : modules){
-            sb.append(m.type.name).append(':').append(m.x).append(':').append(m.y).append(';');
+            sb.append(m.type.name).append(':').append(m.x).append(':').append(m.y);
+            if(m.color != null) sb.append(':').append(m.color);
+            if(m.cannon != null){
+                sb.append('@');
+                if(!m.cannon.color.equals(Color.white)) sb.append('#').append(m.cannon.color).append('/');
+                if(m.cannon.pivot == CannonSpec.cornerPivot) sb.append("%/");
+                for(PlacedModule p : m.cannon.modules){
+                    sb.append(p.type.name).append(',').append(p.x).append(',').append(p.y);
+                    if(p.color != null) sb.append(',').append(p.color);
+                    sb.append('/');
+                }
+            }
+            sb.append(';');
         }
         return sb.toString();
     }
@@ -264,13 +284,50 @@ public class ModularDesign{
                 continue;
             }
 
+            String cannon = null;
+            int at = part.indexOf('@');
+            if(at >= 0){
+                cannon = part.substring(at + 1);
+                part = part.substring(0, at);
+            }
+
             String[] f = part.split(":");
-            if(f.length != 3) continue;
+            if(f.length != 3 && f.length != 4) continue;
             ModuleType type = MdlModules.byName(f[0]);
             if(type == null) continue;
             try{
-                out.modules.add(new PlacedModule(type, Integer.parseInt(f[1]), Integer.parseInt(f[2])));
-            }catch(NumberFormatException ignored){}
+                PlacedModule placed = new PlacedModule(type, Integer.parseInt(f[1]), Integer.parseInt(f[2]));
+                if(f.length == 4) placed.color = Color.valueOf(f[3]);
+                if(cannon != null) placed.cannon = readCannon(cannon);
+                out.modules.add(placed);
+            }catch(RuntimeException ignored){}
+        }
+        return out;
+    }
+
+    private static ModularDesign readCannon(String data){
+        ModularDesign out = new ModularDesign();
+        for(String part : data.split("/")){
+            if(part.isEmpty()) continue;
+            try{
+                if(part.charAt(0) == '#'){
+                    out.color.set(Color.valueOf(part.substring(1)));
+                    continue;
+                }
+                if(part.charAt(0) == '%'){
+                    out.pivot = CannonSpec.cornerPivot;
+                    continue;
+                }
+
+                String[] f = part.split(",");
+                if(f.length != 3 && f.length != 4) continue;
+                ModuleType type = MdlModules.byName(f[0]);
+                if(type == null) continue;
+
+                PlacedModule placed = new PlacedModule(type, Integer.parseInt(f[1]), Integer.parseInt(f[2]));
+                if(f.length == 4) placed.color = Color.valueOf(f[3]);
+                out.modules.add(placed);
+            }catch(RuntimeException ignored){}
         }
         return out;
     }

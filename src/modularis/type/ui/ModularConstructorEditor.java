@@ -5,6 +5,7 @@ import arc.graphics.*;
 import arc.graphics.g2d.*;
 import arc.input.*;
 import arc.math.*;
+import arc.math.geom.*;
 import arc.scene.*;
 import arc.scene.event.*;
 import arc.scene.style.*;
@@ -24,12 +25,23 @@ import modularis.type.units.modules.*;
 import static mindustry.Vars.*;
 
 public class ModularConstructorEditor extends BaseDialog{
-    /** Shared instance. */
-    public static final ModularConstructorEditor dialog = new ModularConstructorEditor();
+    /** Shared instance for machines. */
+    public static final ModularConstructorEditor dialog = new ModularConstructorEditor(false);
+    /** The same editor, working on one hinge's cannon: parts list, a pivot, a radius and a weight limit. */
+    public static final ModularConstructorEditor cannonDialog = new ModularConstructorEditor(true);
+
+    private final boolean cannonMode;
+    private @Nullable ModulHinge hinge;
+    /** Paint the open cannon's parts fall back to: the hinge's own. */
+    private final Color inherited = Color.white.cpy();
 
     private ModularDesign design = new ModularDesign();
     private @Nullable ModuleType selected;
     private boolean showCenterOfMass = true;
+
+    /** In paint mode the grid colours modules instead of placing them. */
+    private boolean paintMode, eraseMode;
+    private final Color brush = Color.valueOf("ffd37f");
 
     private final Seq<ModBtn> buttonRefs = new Seq<>();
     private final Table infoTable = new Table();
@@ -44,8 +56,9 @@ public class ModularConstructorEditor extends BaseDialog{
     /** Readouts never shrink below about two lines, nor grow past their old desktop size. */
     private static final float readoutMin = 46f, readoutPref = 150f;
 
-    public ModularConstructorEditor(){
-        super("Modular Editor");
+    public ModularConstructorEditor(boolean cannonMode){
+        super(cannonMode ? "Cannon Editor" : "Modular Editor");
+        this.cannonMode = cannonMode;
         MdlModules.load();
         build();
         addCloseListener();
@@ -55,10 +68,34 @@ public class ModularConstructorEditor extends BaseDialog{
         });
     }
 
+    public void showCannon(ModularDesign cannon, ModulHinge hinge, int number, Color hingeColor){
+        this.hinge = hinge;
+        inherited.set(hingeColor);
+        title.setText("Cannon #" + number + " - " + hinge.localizedName);
+        show(cannon, null);
+    }
+
+    private boolean canAdd(ModuleType type){
+        return cannonMode ? CannonSpec.canAdd(design, hinge, type) : design.canAdd(type);
+    }
+
+    private boolean canPlace(ModuleType type, int x, int y){
+        return cannonMode ? CannonSpec.canPlace(design, hinge, type, x, y) : design.canPlace(type, x, y);
+    }
+
+    private Color paintOf(PlacedModule m){
+        return cannonMode ? ModulHinge.partColor(design, m, inherited) : design.colorOf(m);
+    }
+
+    private String summary(){
+        return cannonMode ? CannonSpec.compute(design, hinge).summary(hinge) : machineSummary();
+    }
+
     public void show(ModularDesign design, @Nullable Runnable onSave){
         this.design = design;
         this.onSave = onSave;
         this.selected = null;
+        this.paintMode = this.eraseMode = false;
         this.shownInfo = null;
         this.forceInfo = true;
         canvas.reset();
@@ -71,7 +108,7 @@ public class ModularConstructorEditor extends BaseDialog{
         //left: parts list + info
         cont.table(Tex.buttonTrans, left -> {
             left.top();
-            left.add("Modules").color(Pal.accent).growX().left().pad(6f).row();
+            left.add(cannonMode ? "Parts" : "Modules").color(Pal.accent).growX().left().pad(6f).row();
             left.image().color(Pal.accent).height(2f).growX().pad(2f).row();
 
             //scrollable categorised list
@@ -95,10 +132,10 @@ public class ModularConstructorEditor extends BaseDialog{
 
             //always-on machine physics readout, also fixed height
             left.image().color(Pal.gray).height(2f).growX().pad(2f).row();
-            left.add("Machine").color(Pal.accent).growX().left().pad(4f).row();
+            left.add(cannonMode ? "Cannon" : "Machine").color(Pal.accent).growX().left().pad(4f).row();
             Table machine = new Table();
             machine.left().top();
-            machine.labelWrap(this::machineSummary).growX().left();
+            machine.labelWrap(this::summary).growX().left();
             ScrollPane machinePane = fixedPane(machine, readoutPref);
             machinePane.setScrollingDisabled(true, false);
             machinePane.setFadeScrollBars(false);
@@ -106,20 +143,69 @@ public class ModularConstructorEditor extends BaseDialog{
         }).width(320f).growY();
 
         canvas = new Canvas();
-        cont.add(canvas).grow();
+        cont.stack(canvas, paintOverlay()).grow();
+
+        //five buttons have to fit across a landscape phone
+        float buttonWidth = mobile ? 130f : 160f;
 
         buttons.clearChildren();
-        buttons.button("Back", Icon.left, this::hide).size(160f, 55f);
-        buttons.button("Clear", Icon.trash, () -> design.clear()).size(160f, 55f);
-
+        buttons.button("Back", Icon.left, this::hide).size(buttonWidth, 55f);
+        buttons.button("Clear", Icon.trash, () -> design.clear()).size(buttonWidth, 55f);
+        //in a cannon, white here means "wear the hinge's paint"
         buttons.button("Color", Icon.pencil, () -> {
             ModularDesign target = design;
             ui.picker.show(target.color, false, c -> target.color.set(c));
-        }).size(160f, 55f);
+        }).size(buttonWidth, 55f);
+
+        TextButton paintButton = buttons.button("Paint", Icon.pencil, Styles.togglet, () -> {
+            paintMode = !paintMode;
+            if(paintMode) selected = null;
+        }).size(buttonWidth, 55f).get();
+        paintButton.update(() -> paintButton.setChecked(paintMode));
+
+        if(cannonMode){
+            TextButton pivotButton = buttons.button("Pivot", Icon.refresh, () -> {
+                design.pivot = design.pivot == CannonSpec.cellPivot ? CannonSpec.cornerPivot : CannonSpec.cellPivot;
+                canvas.reset();
+            }).size(buttonWidth, 55f).get();
+            pivotButton.update(() -> pivotButton.setText(design.pivot == CannonSpec.cornerPivot ? "Pivot: corner" : "Pivot: cell"));
+            return;
+        }
 
         TextButton comButton = buttons.button("Center", Icon.eye, Styles.togglet,
-            () -> showCenterOfMass = !showCenterOfMass).size(160f, 55f).get();
+            () -> showCenterOfMass = !showCenterOfMass).size(buttonWidth, 55f).get();
         comButton.update(() -> comButton.setChecked(showCenterOfMass));
+    }
+
+    private Table paintOverlay(){
+        Table overlay = new Table();
+        overlay.touchable = Touchable.childrenOnly;
+        overlay.top().left();
+        overlay.visible(() -> paintMode);
+
+        overlay.table(Tex.buttonTrans, bar -> {
+            ImageButton swatch = new ImageButton(Tex.whiteui, Styles.clearNoneTogglei);
+            swatch.getImageCell().grow().pad(4f);
+            swatch.clicked(() -> {
+                eraseMode = false;
+                ui.picker.show(brush, false, brush::set);
+            });
+            swatch.update(() -> {
+                swatch.setChecked(false);
+                swatch.getImage().setColor(eraseMode ? Color.gray : brush);
+            });
+            bar.add(swatch).size(50f).pad(4f);
+
+            TextButton erase = bar.button("Erase", Icon.cancel, Styles.togglet,
+                () -> eraseMode = !eraseMode).size(120f, 50f).pad(4f).get();
+            erase.update(() -> erase.setChecked(eraseMode));
+
+            bar.button("Reset", Icon.refresh, () -> {
+                for(PlacedModule m : design.modules) m.color = null;
+            }).size(120f, 50f).pad(4f);
+        }).pad(6f);
+
+        return overlay;
     }
 
     private static ScrollPane fixedPane(Element content, float prefHeight){
@@ -134,7 +220,7 @@ public class ModularConstructorEditor extends BaseDialog{
     private void buildList(Table list){
         buttonRefs.clear();
         for(ModuleCategory cat : ModuleCategory.values()){
-            Seq<ModuleType> inCat = MdlModules.all.select(m -> m.category == cat);
+            Seq<ModuleType> inCat = (cannonMode ? MdlModules.cannonParts : MdlModules.all).select(m -> m.category == cat);
             if(inCat.isEmpty()) continue;
 
             list.add(cat.title).color(cat.color).left().growX().padTop(8f).padLeft(4f).row();
@@ -158,11 +244,14 @@ public class ModularConstructorEditor extends BaseDialog{
         TextureRegionDrawable icon = new TextureRegionDrawable(type.region());
         ImageButton button = new ImageButton(icon, Styles.clearNoneTogglei);
         button.getImageCell().grow().pad(6f);
-        button.clicked(() -> selected = (selected == type ? null : type));
+        button.clicked(() -> {
+            selected = (selected == type ? null : type);
+            paintMode = false;
+        });
         button.update(() -> {
             button.setChecked(selected == type);
             //dimmed when it can't be added: at its count limit, or no free slots for it
-            boolean blocked = !design.canAdd(type);
+            boolean blocked = !canAdd(type);
             button.getImage().setColor(selected == type ? Pal.accent : (blocked ? Color.gray : Color.white));
         });
         buttonRefs.add(new ModBtn(button, type));
@@ -200,7 +289,7 @@ public class ModularConstructorEditor extends BaseDialog{
 
         sb.append("Modules: ").append(design.modules.size).append('\n');
         sb.append("Weight: ").append(Strings.autoFixed(s.weight, 1)).append('\n');
-        sb.append("Health: ").append(Strings.autoFixed(design.totalHealth(), 0)).append('\n');
+        sb.append("Health: ").append(Strings.autoFixed(design.totalHealth() * s.healthMultiplier, 0)).append('\n');
         if(s.armor > 0f) sb.append("Armor: ").append(Strings.autoFixed(s.armor, 1)).append('\n');
         if(s.cargoCapacity > 0) sb.append("Cargo: ").append(s.cargoCapacity).append(" items\n");
         if(s.canBuild()) sb.append("Build: [lime]x").append(Strings.autoFixed(s.buildSpeed, 2)).append("[]\n");
@@ -208,6 +297,13 @@ public class ModularConstructorEditor extends BaseDialog{
             sb.append("Drill: [lime]tier ").append(s.drillTier)
                 .append(", x").append(Strings.autoFixed(s.drillSpeed, 2)).append("[]\n");
         }
+
+        if(s.hasRam){
+            float impact = Math.min(s.speedMultiplier() * ModularPhysics.baseSpeed, s.ramTopSpeed);
+            sb.append("Ram: [scarlet]").append(Strings.autoFixed(ModularImpact.ramDamage(s.weight, impact) * s.ramMultiplier, 0))
+                .append("[] dmg at top speed\n");
+        }
+        if(s.activeCount > 0) sb.append("Active charges: [#6cb8ff]").append(s.activeCount).append("[]\n");
 
         //power
         String pcol = s.underpowered ? "[scarlet]" : "[lime]";
@@ -394,6 +490,7 @@ public class ModularConstructorEditor extends BaseDialog{
                     dragged = false;
 
                     if(button == KeyCode.mouseLeft){
+                        if(openCannonAt(mx, my)) return true;
                         painting = true;
                         leftAction(mx, my);
                     }else if(button == KeyCode.mouseRight || button == KeyCode.mouseMiddle){
@@ -418,7 +515,7 @@ public class ModularConstructorEditor extends BaseDialog{
                     if(panning){
                         camX -= dx / cellPx();
                         camY -= dy / cellPx();
-                    }else if(painting && selected != null){
+                    }else if(painting && (selected != null || paintMode)){
                         leftAction(mx, my);
                     }
 
@@ -518,7 +615,7 @@ public class ModularConstructorEditor extends BaseDialog{
                 if(Math.abs(mx - pressLx) <= slop && Math.abs(my - pressLy) <= slop) return; //still a tap
 
                 dragged = true;
-                if(selected != null){
+                if(selected != null || paintMode){
                     touchPainting = true;
                     //the stroke started back at the press, so paint from there
                     leftAction(pressLx, pressLy);
@@ -550,15 +647,15 @@ public class ModularConstructorEditor extends BaseDialog{
             if(pointer != 0) return;
 
             //a clean tap: place the selected part, or clear the cell when nothing is selected
-            if(!gestureSpent && !touchPainting && !touchPanning){
+            if(!gestureSpent && !touchPainting && !touchPanning && !openCannonAt(pressLx, pressLy)){
                 leftAction(pressLx, pressLy);
             }
             touchPainting = touchPanning = false;
         }
 
         void reset(){
-            camX = design.isEmpty() ? 0f : design.centerX();
-            camY = design.isEmpty() ? 0f : design.centerY();
+            camX = cannonMode ? design.pivot : design.isEmpty() ? 0f : design.centerX();
+            camY = cannonMode ? design.pivot : design.isEmpty() ? 0f : design.centerY();
             zoom = 1f;
         }
 
@@ -577,8 +674,11 @@ public class ModularConstructorEditor extends BaseDialog{
         void leftAction(float mx, float my){
             int cx = Mathf.floor(cellX(mx));
             int cy = Mathf.floor(cellY(my));
-            if(selected != null){
-                design.place(selected, cx, cy);
+            if(paintMode){
+                PlacedModule m = design.get(cx, cy);
+                if(m != null) m.color = eraseMode ? null : brush.cpy();
+            }else if(selected != null){
+                if(canPlace(selected, cx, cy)) design.place(selected, cx, cy);
             }else{
                 design.removeAt(cx, cy);
             }
@@ -603,9 +703,11 @@ public class ModularConstructorEditor extends BaseDialog{
             if(!clipBegin(x, y, getWidth(), getHeight())) return;
 
             drawGrid();
+            if(cannonMode) drawPivot();
             drawModules();
             drawCenterOfMass();
             drawGhost();
+            if(!cannonMode) drawCannonButtons();
 
             clipEnd();
 
@@ -645,17 +747,18 @@ public class ModularConstructorEditor extends BaseDialog{
 
         void drawModules(){
             float cp = cellPx();
-            boolean deleteHover = selected == null;
+            boolean deleteHover = selected == null && !paintMode;
             int hx = Mathf.floor(cellX(hoverLx)), hy = Mathf.floor(cellY(hoverLy));
 
             //bodies (each module decides how it draws), then overlays (cells, turrets)
+            ModulHinge.previewDesign = cannonMode ? null : design;
             for(PlacedModule m : design.modules){
                 float sx = screenX(m.x + m.type.w / 2f);
                 float sy = screenY(m.y + m.type.h / 2f);
                 float w = m.type.w * cp, h = m.type.h * cp;
                 
                 m.type.drawBody(null, m, sx, sy, w, h, 0f);
-                m.type.drawPaint(null, m, sx, sy, w, h, 0f, design.color);
+                m.type.drawPaint(null, m, sx, sy, w, h, 0f, paintOf(m));
             }
             for(PlacedModule m : design.modules){
                 float sx = screenX(m.x + m.type.w / 2f);
@@ -674,6 +777,16 @@ public class ModularConstructorEditor extends BaseDialog{
                 Fill.crect(sx - w / 2f, sy - h / 2f, w, h);
             }
 
+            if(paintMode){
+                PlacedModule m = design.get(hx, hy);
+                if(m != null){
+                    float w = m.type.w * cp, h = m.type.h * cp;
+                    Draw.color(eraseMode ? Color.white : brush);
+                    Lines.stroke(2f);
+                    Lines.rect(screenX(m.x), screenY(m.y), w, h);
+                }
+            }
+
             //delete-highlight
             if(deleteHover){
                 for(PlacedModule m : design.modules){
@@ -688,8 +801,33 @@ public class ModularConstructorEditor extends BaseDialog{
             Draw.reset();
         }
 
+        /** Outer lines are what bullets and units hit, the inner ones what walls stop. */
+        void drawCollider(){
+            if(design.isEmpty()) return;
+
+            float cx = design.centerX(), cy = design.centerY();
+            ModularCollider collider = ModularCollider.of(design, cx, cy, 1f);
+            float[] parts = collider.parts;
+
+            Lines.stroke(1.5f);
+            for(int i = 0; i < parts.length; i += 4){
+                float px = cx + parts[i], py = cy + parts[i + 1], hw = parts[i + 2], hh = parts[i + 3];
+
+                Draw.color(Pal.heal, 0.8f);
+                Lines.rect(screenX(px - hw), screenY(py - hh), hw * 2f * cellPx(), hh * 2f * cellPx());
+
+                float s = ModularCollider.terrainScale;
+                Draw.color(Pal.remove, 0.8f);
+                Lines.rect(screenX(cx + parts[i] * s - hw * s), screenY(cy + parts[i + 1] * s - hh * s),
+                    hw * s * 2f * cellPx(), hh * s * 2f * cellPx());
+            }
+            Draw.reset();
+        }
+
         void drawCenterOfMass(){
-            if(!showCenterOfMass || design.isEmpty()) return;
+            if(!showCenterOfMass || design.isEmpty() || cannonMode) return;
+
+            drawCollider();
 
             ModularPhysics.Stats s = ModularPhysics.compute(design);
             float cp = cellPx();
@@ -706,12 +844,70 @@ public class ModularConstructorEditor extends BaseDialog{
             Draw.reset();
         }
 
+        void drawPivot(){
+            float sx = screenX(design.pivot), sy = screenY(design.pivot), r = hinge.radius * cellPx();
+
+            Draw.color(Pal.accent, 0.08f);
+            Fill.circle(sx, sy, r);
+            Draw.color(Pal.accent, 0.7f);
+            Lines.stroke(2f);
+            Lines.circle(sx, sy, r);
+
+            float mark = Math.max(6f, cellPx() * 0.4f);
+            Draw.color(Pal.lightOrange);
+            Lines.circle(sx, sy, mark * 0.5f);
+            Lines.line(sx - mark, sy, sx + mark, sy);
+            Lines.line(sx, sy - mark, sx, sy + mark);
+            Draw.reset();
+        }
+
+        Rect cannonButton(PlacedModule m, Rect out){
+            float w = Scl.scl(96f), h = Scl.scl(22f);
+            return out.set(screenX(m.x + m.type.w / 2f) - w / 2f, screenY(m.y + m.type.h) + Scl.scl(3f), w, h);
+        }
+
+        boolean openCannonAt(float mx, float my){
+            if(cannonMode) return false;
+
+            int number = 0;
+            for(PlacedModule m : design.modules){
+                if(!(m.type instanceof ModulHinge h)) continue;
+                number++;
+                if(!cannonButton(m, Tmp.r1).contains(x + mx, y + my)) continue;
+
+                if(m.cannon == null) m.cannon = new ModularDesign();
+                cannonDialog.showCannon(m.cannon, h, number, design.colorOf(m));
+                return true;
+            }
+            return false;
+        }
+
+        void drawCannonButtons(){
+            int number = 0;
+            for(PlacedModule m : design.modules){
+                if(!(m.type instanceof ModulHinge)) continue;
+                number++;
+
+                Rect r = cannonButton(m, Tmp.r1);
+                boolean over = r.contains(x + hoverLx, y + hoverLy);
+                Draw.color(0f, 0f, 0f, 0.7f);
+                Fill.crect(r.x, r.y, r.width, r.height);
+                Draw.color(over ? Pal.accent : Pal.gray);
+                Lines.stroke(2f);
+                Lines.rect(r.x, r.y, r.width, r.height);
+                Draw.reset();
+
+                Fonts.outline.draw("Cannon #" + number, r.x + r.width / 2f, r.y + r.height - Scl.scl(4f),
+                    over ? Pal.accent : Color.white, 0.8f, false, Align.center);
+            }
+        }
+
         void drawGhost(){
             if(selected == null) return;
             float cp = cellPx();
             int cx = Mathf.floor(cellX(hoverLx));
             int cy = Mathf.floor(cellY(hoverLy));
-            boolean ok = design.canPlace(selected, cx, cy);
+            boolean ok = canPlace(selected, cx, cy);
 
             float sx = screenX(cx + selected.w / 2f);
             float sy = screenY(cy + selected.h / 2f);

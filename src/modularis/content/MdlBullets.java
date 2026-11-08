@@ -3,6 +3,7 @@ package modularis.content;
 import arc.graphics.*;
 import mindustry.content.*;
 import mindustry.entities.bullet.*;
+import modularis.type.units.*;
 
 public class MdlBullets{
     public static BulletType ricochet;
@@ -12,6 +13,8 @@ public class MdlBullets{
     public static void load(){
         if(loaded) return;
         loaded = true;
+
+        CannonCaliber.load();
 
         ricochet = new BasicBulletType(3.6f, 1f){{
             lifetime = 20f;

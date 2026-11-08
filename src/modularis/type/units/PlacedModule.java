@@ -1,10 +1,15 @@
 package modularis.type.units;
 
+import arc.graphics.*;
+import arc.util.*;
+
 import modularis.type.units.modules.*;
 
 public class PlacedModule{
     public ModuleType type;
     public int x, y;
+    public @Nullable Color color;
+    public @Nullable ModularDesign cannon;
 
     public PlacedModule(ModuleType type, int x, int y){
         this.type = type;
@@ -21,6 +26,17 @@ public class PlacedModule{
     }
 
     public PlacedModule copy(){
-        return new PlacedModule(type, x, y);
+        PlacedModule out = new PlacedModule(type, x, y);
+        if(color != null) out.color = color.cpy();
+        if(cannon != null) out.cannon = cannon.copy();
+        return out;
+    }
+
+    public float weight(){
+        return type.weight + (cannon == null ? 0f : cannon.totalWeight());
+    }
+
+    public float health(){
+        return type.health + (cannon == null ? 0f : cannon.totalHealth());
     }
 }

@@ -59,6 +59,8 @@ public class ModularUnitType extends UnitType{
 
         canDrown = true;
         shadowElevation = 0f;
+        //the engine's physics treats every unit as a circle; ModularUnitEntity does this itself
+        physics = false;
 
         buildSpeed = 1f;
         drawBuildBeam = false;
@@ -184,6 +186,25 @@ public class ModularUnitType extends UnitType{
 
         float moveFrac = unit.vel().len() / Math.max(0.001f, speed);
         if(moveFrac > 0.12f && unit.elevation < 0.001f) emitWheelDust(unit, e.design, cell, cx, cy, rot, moveFrac);
+        if(e.dashTime > 0f && unit.elevation < 0.001f) emitDashDust(unit, e.design, cell, cx, cy, rot);
+    }
+
+    private void emitDashDust(Unit unit, ModularDesign design, float cell, float cx, float cy, float rot){
+        for(PlacedModule m : design.modules){
+            if(!(m.type instanceof ModulWheel)) continue;
+            if(!Mathf.chanceDelta(0.8f)) continue;
+
+            dustPos(unit, m, cell, cx, cy, rot, tmp);
+            MdlFX.dashDust.at(tmp.x, tmp.y, unit.rotation);
+        }
+    }
+
+    @Override
+    public void getUnitStances(Unit unit, Seq<UnitStance> out){
+        super.getUnitStances(unit, out);
+        if(unit instanceof ModularUnitEntity e && e.actives.any() && unit.controller() instanceof CommandAI){
+            out.add(MdlStances.holdActives);
+        }
     }
 
     private void localOffset(PlacedModule m, float cell, float cx, float cy, Vec2 out){
@@ -237,6 +258,12 @@ public class ModularUnitType extends UnitType{
         if(unit.elevation > 0.001f){
             Draw.z(Layer.groundUnit - 0.015f);
             drawBoostGlow(unit, design, cell, cx, cy);
+        }
+
+        if(unit instanceof ModularUnitEntity de && de.dashTrail.size() > 0){
+            Draw.z(Layer.groundUnit - 0.012f);
+            de.dashTrail.draw(de.dashColor, Math.max(1.6f, unit.hitSize * 0.14f));
+            Draw.reset();
         }
 
         Draw.z(Layer.groundUnit - 0.01f);
@@ -383,18 +410,18 @@ public class ModularUnitType extends UnitType{
         }
         Draw.reset();
 
-        if(design.color.equals(Color.white)) return;
-
         //whole machine rather than one per module.
-        PaintRamp ramp = PaintRamp.of(design.color);
         for(int tone = 0; tone < 3; tone++){
             Draw.z(Layer.groundUnit + 0.002f * (tone + 1));
-            Draw.color(ramp.tone(tone));
 
             for(PlacedModule m : design.modules){
+                Color paint = design.colorOf(m);
+                if(paint.equals(Color.white)) continue;
+
                 TextureRegion region = m.type.paintRegion(tone);
                 if(region == null || !region.found()) continue;
 
+                Draw.color(PaintRamp.of(paint).tone(tone));
                 worldPos(unit, m, cell, cx, cy, rot, tmp);
                 Draw.rect(region, tmp.x, tmp.y, m.type.w * cell, m.type.h * cell, rot);
             }
@@ -459,6 +486,7 @@ public class ModularUnitType extends UnitType{
             for(ModuleType t : MdlModules.all){
                 if(t instanceof ModulTurret mt) r = Math.max(r, mt.range());
             }
+            r = Math.max(r, CannonCaliber.maxRange());
             float reach = r > 0f ? r : 150f;
 
             weapons.add(new Weapon(){{
