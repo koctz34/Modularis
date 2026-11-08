@@ -78,7 +78,7 @@ public class CannonSpec{
         }
         s.deadBarrels = barrels - used.size;
 
-        float load = hinge.weightLimit <= 0f ? 1f : s.weight / hinge.weightLimit;
+        float load = hinge.unlimited ? 0.35f : hinge.weightLimit <= 0f ? 1f : s.weight / hinge.weightLimit;
         s.rotateSpeed = hinge.rotateSpeed * Mathf.clamp(1.35f - load, 0.35f, 1.2f) * (1f + 0.3f * s.motors);
         return s;
     }
@@ -126,18 +126,22 @@ public class CannonSpec{
     }
 
     public static boolean canAdd(ModularDesign cannon, ModulHinge hinge, ModuleType type){
-        return cannon.canAdd(type) && cannon.totalWeight() + type.weight <= hinge.weightLimit + 0.0001f;
+        return cannon.canAdd(type) && (hinge.unlimited || cannon.totalWeight() + type.weight <= hinge.weightLimit + 0.0001f);
     }
 
     public static boolean canPlace(ModularDesign cannon, ModulHinge hinge, ModuleType type, int x, int y){
-        return canAdd(cannon, hinge, type) && cannon.canPlace(type, x, y) && inRadius(type, x, y, hinge.radius, cannon.pivot);
+        return canAdd(cannon, hinge, type) && cannon.canPlace(type, x, y) && (hinge.unlimited || inRadius(type, x, y, hinge.radius, cannon.pivot));
     }
 
     public String summary(ModulHinge hinge){
         StringBuilder sb = new StringBuilder();
-        String wcol = weight > hinge.weightLimit * 0.9f ? "[orange]" : "[lime]";
-        sb.append("Weight: ").append(wcol).append(Strings.autoFixed(weight, 1)).append(" / ")
-            .append(Strings.autoFixed(hinge.weightLimit, 0)).append("[]\n");
+        if(hinge.unlimited){
+            sb.append("Weight: ").append(Strings.autoFixed(weight, 1)).append(" [accent](no limit)[]\n");
+        }else{
+            String wcol = weight > hinge.weightLimit * 0.9f ? "[orange]" : "[lime]";
+            sb.append("Weight: ").append(wcol).append(Strings.autoFixed(weight, 1)).append(" / ")
+                .append(Strings.autoFixed(hinge.weightLimit, 0)).append("[]\n");
+        }
         sb.append("Health: ").append(Strings.autoFixed(health, 0)).append('\n');
         sb.append("Pivot: ").append(pivot == cornerPivot ? "cell corner (centres 2-wide)" : "cell centre (centres 1- and 3-wide)").append('\n');
         sb.append("Traverse: ").append(Strings.autoFixed(rotateSpeed * 60f, 0)).append(" deg/s\n");

@@ -37,7 +37,7 @@ public class ModularConstructorEditor extends BaseDialog{
 
     private ModularDesign design = new ModularDesign();
     private @Nullable ModuleType selected;
-    private boolean showCenterOfMass = true;
+    private boolean showCenterOfMass = true, showCannons = true;
 
     /** In paint mode the grid colours modules instead of placing them. */
     private boolean paintMode, eraseMode;
@@ -146,7 +146,7 @@ public class ModularConstructorEditor extends BaseDialog{
         cont.stack(canvas, paintOverlay()).grow();
 
         //five buttons have to fit across a landscape phone
-        float buttonWidth = mobile ? 130f : 160f;
+        float buttonWidth = mobile ? 110f : 150f;
 
         buttons.clearChildren();
         buttons.button("Back", Icon.left, this::hide).size(buttonWidth, 55f);
@@ -175,6 +175,10 @@ public class ModularConstructorEditor extends BaseDialog{
         TextButton comButton = buttons.button("Center", Icon.eye, Styles.togglet,
             () -> showCenterOfMass = !showCenterOfMass).size(buttonWidth, 55f).get();
         comButton.update(() -> comButton.setChecked(showCenterOfMass));
+
+        TextButton cannonButton = buttons.button("Cannons", Icon.eye, Styles.togglet,
+            () -> showCannons = !showCannons).size(buttonWidth, 55f).get();
+        cannonButton.update(() -> cannonButton.setChecked(showCannons));
     }
 
     private Table paintOverlay(){
@@ -707,7 +711,7 @@ public class ModularConstructorEditor extends BaseDialog{
             drawModules();
             drawCenterOfMass();
             drawGhost();
-            if(!cannonMode) drawCannonButtons();
+            if(!cannonMode && showCannons) drawCannonButtons();
 
             clipEnd();
 
@@ -764,6 +768,7 @@ public class ModularConstructorEditor extends BaseDialog{
                 float sx = screenX(m.x + m.type.w / 2f);
                 float sy = screenY(m.y + m.type.h / 2f);
                 float w = m.type.w * cp, h = m.type.h * cp;
+                if(!showCannons && m.type instanceof ModulHinge) continue;
                 m.type.drawTop(null, m, sx, sy, w, h, 0f);
             }
 
@@ -847,11 +852,13 @@ public class ModularConstructorEditor extends BaseDialog{
         void drawPivot(){
             float sx = screenX(design.pivot), sy = screenY(design.pivot), r = hinge.radius * cellPx();
 
-            Draw.color(Pal.accent, 0.08f);
-            Fill.circle(sx, sy, r);
-            Draw.color(Pal.accent, 0.7f);
-            Lines.stroke(2f);
-            Lines.circle(sx, sy, r);
+            if(!hinge.unlimited){
+                Draw.color(Pal.accent, 0.08f);
+                Fill.circle(sx, sy, r);
+                Draw.color(Pal.accent, 0.7f);
+                Lines.stroke(2f);
+                Lines.circle(sx, sy, r);
+            }
 
             float mark = Math.max(6f, cellPx() * 0.4f);
             Draw.color(Pal.lightOrange);
@@ -867,7 +874,7 @@ public class ModularConstructorEditor extends BaseDialog{
         }
 
         boolean openCannonAt(float mx, float my){
-            if(cannonMode) return false;
+            if(cannonMode || !showCannons) return false;
 
             int number = 0;
             for(PlacedModule m : design.modules){

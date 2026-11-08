@@ -21,6 +21,7 @@ public class ModulHinge extends ModuleType{
     public float radius = 3f;
     public float weightLimit = 6f;
     public float rotateSpeed = 9f;
+    public boolean unlimited = false;
 
     public static @Nullable ModularDesign previewDesign;
 
@@ -170,9 +171,14 @@ public class ModulHinge extends ModuleType{
 
     @Override
     public void buildStats(Table table){
-        stat(table, "Cannon radius", Strings.autoFixed(radius, 0) + " cells");
-        stat(table, "Cannon weight limit", Strings.autoFixed(weightLimit, 0));
-        stat(table, "Traverse", Strings.autoFixed(rotateSpeed * 60f, 0) + " deg/s, less when heavy");
+        if(unlimited){
+            stat(table, "Cannon size", "[accent]Unlimited[]");
+            stat(table, "Traverse", Strings.autoFixed(rotateSpeed * 60f, 0) + " deg/s, whatever it weighs");
+        }else{
+            stat(table, "Cannon radius", Strings.autoFixed(radius, 0) + " cells");
+            stat(table, "Cannon weight limit", Strings.autoFixed(weightLimit, 0));
+            stat(table, "Traverse", Strings.autoFixed(rotateSpeed * 60f, 0) + " deg/s, less when heavy");
+        }
         stat(table, "Build", "[accent]Place it, then press its Cannon button[]");
     }
 }

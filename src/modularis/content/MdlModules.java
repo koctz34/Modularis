@@ -38,7 +38,7 @@ public class MdlModules{
         // active
         dash,
         // cannon hinges
-        hingeSmall, hingeMedium, hingeLarge;
+        hingeSmall, hingeMedium, hingeLarge, hingeSandbox;
 
     public static void load(){
         if(!all.isEmpty()) return;
@@ -1167,6 +1167,16 @@ public class MdlModules{
             radius = 12f;
             weightLimit = 130f;
             rotateSpeed = 2.6f;
+        }});
+
+        hingeSandbox = add(new ModulHinge("sandbox-hinge1x1"){{
+            localizedName = "Sandbox Hinge";
+            description = "Any size, any caliber, any number of barrels.";
+            weight = 1f;
+            health = 100f;
+            slotCost = 1;
+            unlimited = true;
+            rotateSpeed = 6f;
         }});
 
         // ---- Cannon parts ----
