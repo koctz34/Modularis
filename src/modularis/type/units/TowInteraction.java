@@ -78,11 +78,11 @@ public class TowInteraction{
                 link.readStrain();
             }
         }
-        if(!net.client() && !state.isPaused()){
+        if(!state.isPaused()){
             for(int i = links.size - 1; i >= 0; i--){
                 TowLink link = links.get(i);
                 link.updatePhysics();
-                if(link.strain >= 1f){
+                if(!net.client() && link.strain >= 1f){
                     snapEffect(link);
                     removeLink(link);
                 }
@@ -387,12 +387,13 @@ public class TowInteraction{
                 float damper = relative * Math.min(ropeDamping * Time.delta, 1f) / (invA + invB);
                 float impulse = Math.max(spring + damper, 0f);
 
-                a.vel.add(nx * impulse * invA, ny * impulse * invA);
-                b.vel.add(-nx * impulse * invB, -ny * impulse * invB);
+                ModularUnitEntity.shove(a, nx * impulse * invA, ny * impulse * invA);
+                ModularUnitEntity.shove(b, -nx * impulse * invB, -ny * impulse * invB);
                 twist(a, sourcePos, nx * impulse, ny * impulse);
                 twist(b, targetPos, -nx * impulse, -ny * impulse);
             }
 
+            if(net.client()) return;
             strain = stretch / breakStretch;
 
             setTow(a, towA, b, towB, length, strain);

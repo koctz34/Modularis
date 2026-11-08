@@ -150,14 +150,10 @@ public class HarpoonWeapon extends Weapon{
             float damper = relative * Math.min(ropeDamping * Time.delta, 1f) / (invA + invB);
             float impulse = Math.max(spring + damper, 0f);
 
-            if(!net.client() || unit.isLocal()){
-                unit.vel.add(nx * impulse * invA, ny * impulse * invA);
-                if(unit instanceof ModularUnitEntity e) TowInteraction.twist(e, muzzle, nx * impulse, ny * impulse);
-            }
-            if(!net.client() || target.isLocal()){
-                target.vel.add(-nx * impulse * invB, -ny * impulse * invB);
-                if(target instanceof ModularUnitEntity e) TowInteraction.twist(e, anchor, -nx * impulse, -ny * impulse);
-            }
+            ModularUnitEntity.shove(unit, nx * impulse * invA, ny * impulse * invA);
+            ModularUnitEntity.shove(target, -nx * impulse * invB, -ny * impulse * invB);
+            if(unit instanceof ModularUnitEntity e) TowInteraction.twist(e, muzzle, nx * impulse, ny * impulse);
+            if(target instanceof ModularUnitEntity e) TowInteraction.twist(e, anchor, -nx * impulse, -ny * impulse);
         }
 
         if(net.client()) return;
@@ -165,8 +161,8 @@ public class HarpoonWeapon extends Weapon{
         h.strain = stretch / breakStretch;
         if(h.strain >= 1f){
             float mx = (muzzle.x + anchor.x) / 2f, my = (muzzle.y + anchor.y) / 2f;
-            MdlFX.towSnap.at(mx, my, Angles.angle(muzzle.x, muzzle.y, anchor.x, anchor.y));
-            Sounds.rockBreak.at(mx, my, Mathf.random(1.3f, 1.7f));
+            Call.effect(MdlFX.towSnap, mx, my, Angles.angle(muzzle.x, muzzle.y, anchor.x, anchor.y), Color.white);
+            Call.soundAt(Sounds.rockBreak, mx, my, 1f, Mathf.random(1.3f, 1.7f));
             wind(unit, h, anchor.x, anchor.y);
         }
     }

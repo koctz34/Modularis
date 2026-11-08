@@ -37,6 +37,7 @@ public class MdlMod extends Mod{
         Events.run(Trigger.draw, TowInteraction::draw);
         Events.run(Trigger.update, ActiveInteraction::update);
         Events.run(Trigger.update, ModularPathfinder::update);
+        Events.run(Trigger.update, ModularUnitEntity::pushLocalUnit);
         Events.on(WorldLoadEvent.class, event -> ModularPathfinder.reset());
         Events.on(TileChangeEvent.class, event -> {
             if(!world.isGenerating()) ModularPathfinder.tileChanged(event.tile);

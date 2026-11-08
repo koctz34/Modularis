@@ -34,6 +34,11 @@ public class ModularUnitEntity extends TankUnit{
     /** Network/save class id, assigned at registration time. */
     public static int classID = -1;
 
+    private static final float designFreshTicks = 90f;
+    private static final float designWindowTicks = 60f;
+    private static final int designRefreshWindows = 6;
+    private transient float designChangedAt = -1000f;
+
     /** Separates the serialized design from per-cargo inventory data. Must not appear in designs. */
     private static final char cargoDelim = '\u001f';
 
@@ -45,6 +50,8 @@ public class ModularUnitEntity extends TankUnit{
     private static final float moveStep = 2f;
     /** Same softening the engine's physics applies to unit pushes. */
     private static final float pushSoftness = 1.25f;
+    private static final float pushAllowance = 60f;
+    private static final float maxMachineReach = 120f;
     /** How close a hull counts as touching what it rams. */
     private static final float ramContactSlack = 2f;
 
@@ -118,14 +125,50 @@ public class ModularUnitEntity extends TankUnit{
     // ---- dash; none of it is saved, a loaded machine just has its charges back ----
     public transient float dashTime;
     private transient float dashAngle, dashSpeed;
+    private transient float allowedSpeed, allowedTime;
     public transient Color dashColor = Color.white;
     public final transient Trail dashTrail = new Trail(12);
     private transient int dashSerial;
     private transient float lastLocalUse = -1000f;
     private transient float aiActiveTimer;
 
+    private static final float speedGrace = 45f;
+
+    @Override
+    public float speed(){
+        float speed = super.speed();
+        return allowedTime > 0f ? Math.max(speed, allowedSpeed) : speed;
+    }
+
+    public void allowSpeed(float speed, float ticks){
+        allowedSpeed = allowedTime > 0f ? Math.max(allowedSpeed, speed) : speed;
+        allowedTime = Math.max(allowedTime, ticks);
+    }
+
+    public static boolean owns(Unit unit){
+        return unit.isPlayer() ? unit.isLocal() : !net.client();
+    }
+
+    public static void shove(Unit unit, float dvx, float dvy){
+        if(owns(unit)) unit.vel.add(dvx, dvy);
+        if(unit instanceof ModularUnitEntity e){
+            e.allowSpeed(e.baseSpeed() + Mathf.len(dvx, dvy) * shoveAllowance, speedGrace);
+        }
+    }
+
+    public static void shoveImpulse(Unit unit, Vec2 impulse){
+        float mass = Math.max(unit.mass(), 1f);
+        shove(unit, impulse.x / mass, impulse.y / mass);
+    }
+
+    float baseSpeed(){
+        return super.speed();
+    }
+
     /** Slack on the turn cap, so a legitimate turn at full rate is never clipped. */
     private static final float turnMargin = 1.1f;
+    /** A shove keeps adding up while it lasts, so the allowance has to be generous. */
+    private static final float shoveAllowance = 4f;
     private transient float turnAnchor;
     private transient boolean turnAnchored;
 
@@ -192,6 +235,7 @@ public class ModularUnitEntity extends TankUnit{
     }
 
     private void rebuildMounts(){
+        designChangedAt = Time.time;
         ObjectMap<String, CargoMount> previousCargos = new ObjectMap<>();
         for(CargoMount cargo : cargoMounts) previousCargos.put(cargoKey(cargo.placed), cargo);
         Seq<ActiveMount> previousActives = actives.copy();
@@ -455,9 +499,8 @@ public class ModularUnitEntity extends TankUnit{
         damage(base * (build != null ? ModularImpact.crashBuildingSelf : 1f) * (ram ? s.ramSelfShare : 1f));
 
         float hx = crashTileX * tilesize, hy = crashTileY * tilesize;
-        float angle = Angles.angle(hx, hy, x, y);
-        MdlFX.ramSparks.at(hx, hy, angle);
-        Sounds.rockBreak.at(hx, hy, Mathf.random(0.7f, 1.1f));
+        Call.effect(MdlFX.ramSparks, hx, hy, Angles.angle(hx, hy, x, y), Color.white);
+        Call.soundAt(Sounds.rockBreak, hx, hy, 1f, Mathf.random(0.7f, 1.1f));
         Effect.shake(Math.min(base / 30f, 4f), 10f, hx, hy);
     }
 
@@ -554,11 +597,11 @@ public class ModularUnitEntity extends TankUnit{
         Units.nearby(Tmp.r3, other -> {
             if(other == this || other.dead() || other.collisionLayer() != layer) return;
 
+            boolean machine = other instanceof ModularUnitEntity e && e.collider != null;
             boolean hit;
-            if(other instanceof ModularUnitEntity machine && machine.collider != null){
-                //on the server, each pair only needs solving once
-                if(!net.client() && machine.id < id) return;
-                hit = collider.pushFrom(x, y, rotation, machine.collider, machine.x, machine.y, machine.rotation, pushVec);
+            if(machine){
+                ModularUnitEntity e = (ModularUnitEntity)other;
+                hit = collider.pushFrom(x, y, rotation, e.collider, e.x, e.y, e.rotation, pushVec);
             }else{
                 if(other.type == null || !other.type.physics) return;
                 hit = collider.pushFromCircle(x, y, rotation, other.x, other.y, other.hitSize() / 2f, pushVec);
@@ -567,12 +610,33 @@ public class ModularUnitEntity extends TankUnit{
 
             float own = mass(), theirs = other.mass();
             float share = theirs / Math.max(own + theirs, 1f);
-            move(pushVec.x * share / pushSoftness, pushVec.y * share / pushSoftness);
+            float px = pushVec.x * share / pushSoftness, py = pushVec.y * share / pushSoftness;
+            if(owns(this)){
+                move(px, py);
+            }
+            allowSpeed(baseSpeed() + Mathf.len(px, py) * pushAllowance, speedGrace);
 
-            //a client only ever moves its own unit; the server moves the rest
-            if(!net.client()){
+            if(!machine && owns(other)){
                 other.move(-pushVec.x * (1f - share) / pushSoftness, -pushVec.y * (1f - share) / pushSoftness);
             }
+        });
+    }
+
+    public static void pushLocalUnit(){
+        if(!net.client() || player == null || player.dead()) return;
+
+        Unit unit = player.unit();
+        if(unit instanceof ModularUnitEntity || unit.type == null || !unit.type.physics) return;
+
+        float r = unit.hitSize() / 2f;
+        int layer = unit.collisionLayer();
+        Units.nearby(unit.x - r - maxMachineReach, unit.y - r - maxMachineReach, (r + maxMachineReach) * 2f, (r + maxMachineReach) * 2f, other -> {
+            if(!(other instanceof ModularUnitEntity machine) || machine.collider == null || machine.dead()
+                || machine.collisionLayer() != layer) return;
+            if(!machine.collider.pushFromCircle(machine.x, machine.y, machine.rotation, unit.x, unit.y, r, machine.pushVec)) return;
+
+            float share = machine.mass() / Math.max(machine.mass() + unit.mass(), 1f);
+            unit.move(-machine.pushVec.x * share / pushSoftness, -machine.pushVec.y * share / pushSoftness);
         });
     }
 
@@ -600,11 +664,12 @@ public class ModularUnitEntity extends TankUnit{
             for(ActiveMount mount : actives) mount.update(s.powerRatio);
         }
 
+        allowedTime = Math.max(allowedTime - Time.delta, 0f);
         if(dashTime > 0f){
-            if(!net.client() || isLocal()) vel().trns(dashAngle, dashSpeed);
+            if(owns(this)) vel().trns(dashAngle, dashSpeed);
 
             dashTime -= Time.delta;
-            if(dashTime <= 0f && (!net.client() || isLocal()) && s != null && type != null){
+            if(dashTime <= 0f && owns(this) && s != null && type != null){
                 //drop back to what the drivetrain can hold, or it would coast for ages
                 vel().limit(type.speed * Math.max(s.speedMultiplier(), 0.1f));
             }
@@ -660,6 +725,7 @@ public class ModularUnitEntity extends TankUnit{
         dashTime = dash.duration;
         dashAngle = rotation;
         dashSpeed = dash.dashSpeed(this);
+        allowSpeed(dashSpeed, dash.duration + speedGrace);
         dashColor = dash.color;
 
         MdlFX.dashBurst.at(x, y, rotation, dash.color);
@@ -713,9 +779,7 @@ public class ModularUnitEntity extends TankUnit{
         updateLateralGrip(s);
 
         if(Math.abs(spin) > ModularImpact.spinEpsilon){
-            if(!net.client() || isLocal()){
-                rotation += spin * Time.delta;
-            }
+            if(owns(this)) rotation += spin * Time.delta;
             spin *= 1f - Math.min(s.spinDampRate() * Time.delta, 1f);
         }else{
             spin = 0f;
@@ -770,7 +834,7 @@ public class ModularUnitEntity extends TankUnit{
             float barrel = rotation + (w.rotate ? mount.rotation : w.baseRotation);
             Tmp.v1.trns(barrel + 180f, kick);
             ModularImpact.clampImpulse(Tmp.v1, mass(), topSpeed);
-            impulse(Tmp.v1);
+            shoveImpulse(this, Tmp.v1);
 
             Tmp.v2.set(w.x, w.y).rotate(rotation - 90f).sub(Tmp.v3);
             spin = Mathf.clamp(spin + ModularImpact.spinFrom(Tmp.v2.x, Tmp.v2.y, Tmp.v1.x, Tmp.v1.y, s.inertia),
@@ -780,7 +844,7 @@ public class ModularUnitEntity extends TankUnit{
 
     private void updateRamming(ModularPhysics.Stats s){
         ramCooldown -= Time.delta;
-        if(net.client() || dead() || design == null) return;
+        if(dead() || design == null) return;
 
         float speed = vel().len();
 
@@ -822,9 +886,11 @@ public class ModularUnitEntity extends TankUnit{
             ramCooldown = ModularImpact.ramInterval;
 
             float hx = x + Tmp.v2.x * reach, hy = y + Tmp.v2.y * reach;
-            other.damage(damage);
-            damage(damage / (rammed ? s.ramMultiplier : 1f) * (rammed ? s.ramSelfShare : 1f)
-                * ModularImpact.ramSelfDamage * Mathf.clamp(other.mass() / Math.max(mass(), 1f), 0f, 1f));
+            if(!net.client()){
+                other.damage(damage);
+                damage(damage / (rammed ? s.ramMultiplier : 1f) * (rammed ? s.ramSelfShare : 1f)
+                    * ModularImpact.ramSelfDamage * Mathf.clamp(other.mass() / Math.max(mass(), 1f), 0f, 1f));
+            }
 
             if(rammed && fresh){
                 MdlFX.ramSparks.at(hx, hy, rotation + 25f);
@@ -833,8 +899,8 @@ public class ModularUnitEntity extends TankUnit{
             }
 
             Tmp.v3.set(Tmp.v2).scl(ModularImpact.momentumScale * s.weight * closing * share);
-            other.impulse(Tmp.v3);
-            impulse(Tmp.v3.scl(-0.5f));
+            shoveImpulse(other, Tmp.v3);
+            shoveImpulse(this, Tmp.v3.scl(-0.5f));
 
             MdlFX.ramSparks.at(hx, hy, Tmp.v2.angle());
             if(fresh){
@@ -917,7 +983,7 @@ public class ModularUnitEntity extends TankUnit{
 
         Tmp.v1.trns(travel, momentum);
         ModularImpact.clampImpulse(Tmp.v1, mass(), topSpeed);
-        impulse(Tmp.v1);
+        shoveImpulse(this, Tmp.v1);
 
         comOffset(Tmp.v2);
         float leverX = hx - (x + Tmp.v2.x), leverY = hy - (y + Tmp.v2.y);
@@ -1041,7 +1107,11 @@ public class ModularUnitEntity extends TankUnit{
     }
 
     String stateData(){
-        StringBuilder result = new StringBuilder(design == null ? "" : design.serialize());
+        return (design == null ? "" : design.serialize()) + cargoData();
+    }
+
+    String cargoData(){
+        StringBuilder result = new StringBuilder();
         result.append(cargoDelim);
         boolean[] firstCargo = {true};
         for(CargoMount cargo : cargoMounts){
@@ -1194,10 +1264,18 @@ public class ModularUnitEntity extends TankUnit{
         Seq<PlacedModule> options = design.modules.select(this::canShed);
         if(options.isEmpty()) return;
 
+        shedCount++;
         removeModule(options.random());
     }
 
     private void removeModule(PlacedModule victim){
+        shedEffects(victim);
+        design.modules.remove(victim);
+        rebuildCollider();
+        rebuildMounts();
+    }
+
+    private void shedEffects(PlacedModule victim){
         modulePos(victim, Tmp.v6);
         Sounds.explosionDull.at(Tmp.v6.x, Tmp.v6.y, Mathf.random(0.9f, 1.2f), 0.6f);
 
@@ -1206,9 +1284,16 @@ public class ModularUnitEntity extends TankUnit{
         }
 
         launchDebris(victim);
-        design.modules.remove(victim);
-        rebuildCollider();
-        rebuildMounts();
+    }
+
+    private void showLostModules(ModularDesign incoming){
+        if(design == null || design.isEmpty() || incoming == null) return;
+
+        ObjectSet<String> kept = new ObjectSet<>();
+        for(PlacedModule m : incoming.modules) kept.add(cargoKey(m));
+        for(PlacedModule m : design.modules){
+            if(!kept.contains(cargoKey(m))) shedEffects(m);
+        }
     }
 
     private void blowOffCannon(PlacedModule hinge){
@@ -1350,7 +1435,11 @@ public class ModularUnitEntity extends TankUnit{
     @Override
     public void writeSync(Writes write){
         super.writeSync(write);
-        write.str(stateData());
+        boolean full = Time.time - designChangedAt < designFreshTicks
+            || (int)((Time.time + id * 37f) / designWindowTicks) % designRefreshWindows == 0;
+        write.bool(full);
+        if(full) write.str(design == null ? "" : design.serialize());
+        write.str(cargoData());
         write.i(shedCount);
         for(int i = 0; i < 2; i++){
             write.i(towUnitIds[i]); write.i(towXs[i]); write.i(towYs[i]);
@@ -1362,23 +1451,24 @@ public class ModularUnitEntity extends TankUnit{
     @Override
     public void readSync(Reads read){
         super.readSync(read);
-        String incomingState = read.str();
-        ModularDesign incoming = ModularDesign.read(designData(incomingState));
+        boolean full = read.bool();
+        String designString = full ? read.str() : null;
+        String incomingCargo = read.str();
         int incomingShed = read.i();
         for(int i = 0; i < 2; i++){
             towUnitIds[i] = read.i(); towXs[i] = read.i(); towYs[i] = read.i();
             towOtherXs[i] = read.i(); towOtherYs[i] = read.i(); towLengths[i] = read.f(); towTensions[i] = read.f();
         }
 
-        //rebuilding mounts resets WeaponMount state (rotation, reload, heat...). The design
-        //string is sent every sync tick, but only changes when modules are shed - so skip
-        //rebuild when nothing changed or client-side turrets spin forever.
-        String cur = design == null ? "" : design.serialize();
-        String next = incoming == null ? "" : incoming.serialize();
-        if(!cur.equals(next) || shedCount != incomingShed){
-            applyDesignState(incoming, incomingShed);
+        if(full){
+            ModularDesign incoming = ModularDesign.read(designString);
+            String cur = design == null ? "" : design.serialize();
+            if(!cur.equals(designString) || shedCount != incomingShed){
+                if(incomingShed > shedCount) showLostModules(incoming);
+                applyDesignState(incoming, incomingShed);
+            }
         }
-        readCargoData(incomingState);
+        readCargoData(incomingCargo);
         readActives(read);
     }
 }
