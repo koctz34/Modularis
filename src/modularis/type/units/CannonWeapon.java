@@ -6,6 +6,7 @@ import mindustry.entities.units.*;
 import mindustry.gen.*;
 import mindustry.type.*;
 
+import modularis.type.*;
 import modularis.type.units.modules.*;
 
 /** Modular cannon. Aircraft in the next update. **/
@@ -29,10 +30,22 @@ public class CannonWeapon extends Weapon{
     protected void handleBullet(Unit unit, WeaponMount mount, Bullet bullet){
         super.handleBullet(unit, mount, bullet);
         if(bullet == null) return;
+        if(focused(unit)){
+            bullet.remove();
+            MapFlow.begin();
+            return;
+        }
 
         bullet.damage *= damageScale;
         bullet.vel.scl(speedScale);
         bullet.lifetime *= rangeScale / speedScale;
+    }
+
+    private boolean focused(Unit unit){
+        if(placed.cannon == null || !placed.cannon.modules.contains(m -> m.type instanceof CannonPart c && c.kind == CannonPart.Kind.focus)) return false;
+        if(!(unit instanceof ModularUnitEntity e) || e.stats() == null || e.stats().powerRatio < 0.999f) return false;
+        CannonSpec spec = CannonSpec.compute(placed.cannon, hinge);
+        return spec.ammo() == CannonCaliber.heal && spec.lines.contains(l -> l.caliber == 3 && l.length >= 1);
     }
 
     @Override

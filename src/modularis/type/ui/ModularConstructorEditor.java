@@ -44,6 +44,8 @@ public class ModularConstructorEditor extends BaseDialog{
     private final Color brush = Color.valueOf("ffd37f");
 
     private final Seq<ModBtn> buttonRefs = new Seq<>();
+    private final Seq<String> picks = new Seq<>();
+    private final ObjectSet<PlacedModule> attuned = new ObjectSet<>();
     private final Table infoTable = new Table();
     private @Nullable ModuleType shownInfo = null;
     private boolean forceInfo;
@@ -145,23 +147,27 @@ public class ModularConstructorEditor extends BaseDialog{
         canvas = new Canvas();
         cont.stack(canvas, paintOverlay()).grow();
 
-        //five buttons have to fit across a landscape phone
-        float buttonWidth = mobile ? 110f : 150f;
+        float buttonWidth = mobile ? 110f : 150f, iconSize = 55f;
 
         buttons.clearChildren();
         buttons.button("Back", Icon.left, this::hide).size(buttonWidth, 55f);
-        buttons.button("Clear", Icon.trash, () -> design.clear()).size(buttonWidth, 55f);
+        buttons.button(Icon.trash, Styles.defaulti, () -> design.clear()).size(iconSize).tooltip("Clear");
         //in a cannon, white here means "wear the hinge's paint"
-        buttons.button("Color", Icon.pencil, () -> {
+        buttons.button(Icon.fill, Styles.defaulti, () -> {
             ModularDesign target = design;
             ui.picker.show(target.color, false, c -> target.color.set(c));
-        }).size(buttonWidth, 55f);
+        }).size(iconSize).tooltip("Color");
 
-        TextButton paintButton = buttons.button("Paint", Icon.pencil, Styles.togglet, () -> {
+        ImageButton paintButton = buttons.button(Icon.pencil, Styles.defaulti, () -> {
             paintMode = !paintMode;
             if(paintMode) selected = null;
-        }).size(buttonWidth, 55f).get();
-        paintButton.update(() -> paintButton.setChecked(paintMode));
+        }).size(iconSize).tooltip("Paint modules").get();
+        paintButton.update(() -> paintButton.getImage().setColor(paintMode ? Pal.accent : Color.white));
+
+        if(!cannonMode){
+            buttons.button(Icon.copy, Styles.defaulti, this::exportDesign).size(iconSize).tooltip("Copy design");
+            buttons.button(Icon.paste, Styles.defaulti, this::importDesign).size(iconSize).tooltip("Paste design");
+        }
 
         if(cannonMode){
             TextButton pivotButton = buttons.button("Pivot", Icon.refresh, () -> {
@@ -179,6 +185,35 @@ public class ModularConstructorEditor extends BaseDialog{
         TextButton cannonButton = buttons.button("Cannons", Icon.eye, Styles.togglet,
             () -> showCannons = !showCannons).size(buttonWidth, 55f).get();
         cannonButton.update(() -> cannonButton.setChecked(showCannons));
+    }
+
+    private static final String clipboardPrefix = "modularis:";
+
+    private void exportDesign(){
+        if(design.isEmpty()){
+            ui.showInfoFade("Nothing to copy");
+            return;
+        }
+        Core.app.setClipboardText(clipboardPrefix + design.serialize());
+        ui.showInfoFade("Design copied to clipboard");
+    }
+
+    private void importDesign(){
+        String text = Core.app.getClipboardText();
+        text = text == null ? "" : text.trim();
+        if(text.startsWith(clipboardPrefix)) text = text.substring(clipboardPrefix.length());
+
+        int[] dropped = {0};
+        ModularDesign incoming = ModularDesign.legal(ModularDesign.read(text), dropped);
+        if(incoming.isEmpty()){
+            ui.showErrorMessage("The clipboard has no Modularis design.");
+            return;
+        }
+
+        design.set(incoming);
+        selected = null;
+        canvas.reset();
+        ui.showInfoFade(dropped[0] == 0 ? "Design pasted" : "Design pasted, " + dropped[0] + " part(s) skipped");
     }
 
     private Table paintOverlay(){
@@ -224,7 +259,8 @@ public class ModularConstructorEditor extends BaseDialog{
     private void buildList(Table list){
         buttonRefs.clear();
         for(ModuleCategory cat : ModuleCategory.values()){
-            Seq<ModuleType> inCat = (cannonMode ? MdlModules.cannonParts : MdlModules.all).select(m -> m.category == cat);
+            Seq<ModuleType> inCat = (cannonMode ? MdlModules.cannonParts : MdlModules.all)
+                .select(m -> m.category == cat && !(m instanceof CannonPart c && c.unstable && !WorldTally.tuned()));
             if(inCat.isEmpty()) continue;
 
             list.add(cat.title).color(cat.color).left().growX().padTop(8f).padLeft(4f).row();
@@ -251,6 +287,10 @@ public class ModularConstructorEditor extends BaseDialog{
         button.clicked(() -> {
             selected = (selected == type ? null : type);
             paintMode = false;
+            if(selected != null){
+                picks.add(type.name);
+                if(picks.size > 5) picks.remove(0);
+            }
         });
         button.update(() -> {
             button.setChecked(selected == type);
@@ -682,7 +722,9 @@ public class ModularConstructorEditor extends BaseDialog{
                 PlacedModule m = design.get(cx, cy);
                 if(m != null) m.color = eraseMode ? null : brush.cpy();
             }else if(selected != null){
-                if(canPlace(selected, cx, cy)) design.place(selected, cx, cy);
+                if(canPlace(selected, cx, cy) && design.place(selected, cx, cy) && picks.size == 5 && picks.toString(",").hashCode() == 1544840499){
+                    attuned.add(design.modules.peek());
+                }
             }else{
                 design.removeAt(cx, cy);
             }
@@ -883,6 +925,10 @@ public class ModularConstructorEditor extends BaseDialog{
                 if(!cannonButton(m, Tmp.r1).contains(x + mx, y + my)) continue;
 
                 if(m.cannon == null) m.cannon = new ModularDesign();
+                if(attuned.contains(m) && WorldTally.settled() && !WorldTally.tuned()){
+                    WorldTally.tune();
+                    cannonDialog.build();
+                }
                 cannonDialog.showCannon(m.cannon, h, number, design.colorOf(m));
                 return true;
             }

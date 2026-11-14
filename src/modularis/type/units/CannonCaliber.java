@@ -7,7 +7,7 @@ import mindustry.entities.bullet.*;
 import mindustry.gen.*;
 
 public class CannonCaliber{
-    public static final int standard = 0, he = 1, ap = 2;
+    public static final int standard = 0, he = 1, ap = 2, heal = 3;
     private static final CannonCaliber[] all = new CannonCaliber[4];
 
     public final int size;
@@ -15,7 +15,7 @@ public class CannonCaliber{
     public float damage, speed, reload, inaccuracy, range, recoil, shake, splash, splashRadius, width, height;
     public int optimalLength;
     public Sound sound = Sounds.shoot;
-    public final BulletType[] bullets = new BulletType[3];
+    public final BulletType[] bullets = new BulletType[4];
 
     CannonCaliber(int size, String title){
         this.size = size;
@@ -53,32 +53,29 @@ public class CannonCaliber{
 
         for(int i = 1; i < all.length; i++){
             CannonCaliber c = all[i];
-            c.bullets[standard] = c.bullet(1f, 1f, 1f, false, Color.valueOf("ffd37f"));
-            c.bullets[he] = c.bullet(0.6f, 2.5f, 1.6f, false, Color.valueOf("ff8a5c"));
-            c.bullets[ap] = c.bullet(1.4f, 0f, 0f, true, Color.valueOf("9fd4ff"));
+            c.bullets[standard] = c.bullet(new BasicBulletType(c.speed, c.damage), 1f, 1f, false, "ffd37f");
+            c.bullets[he] = c.bullet(new BasicBulletType(c.speed, c.damage * 0.6f), 2.5f, 1.6f, false, "ff8a5c");
+            c.bullets[ap] = c.bullet(new BasicBulletType(c.speed, c.damage * 1.4f), 0f, 0f, true, "9fd4ff");
+            c.bullets[heal] = c.bullet(new HealShellBulletType(c.speed, c.damage * 0.5f), 0f, 0f, false, "84f491");
         }
     }
 
-    private BulletType bullet(float damageScale, float splashScale, float radiusScale, boolean piercing, Color tint){
-        CannonCaliber c = this;
+    private BulletType bullet(BasicBulletType b, float splashScale, float radiusScale, boolean piercing, String tint){
         float blast = splashScale <= 0f ? 0f : Math.max(splash, size * 6f) * splashScale;
-        float blastRadius = Math.max(splashRadius, 12f) * radiusScale;
-
-        return new BasicBulletType(speed, damage * damageScale){{
-            lifetime = c.range / c.speed;
-            width = c.width;
-            height = c.height;
-            splashDamage = blast;
-            splashDamageRadius = blast > 0f ? blastRadius : 0f;
-            pierce = piercing;
-            pierceCap = piercing ? 2 : -1;
-            pierceBuilding = piercing;
-            trailLength = c.size * 3;
-            trailWidth = c.size * 0.8f;
-            backColor = trailColor = hitColor = tint;
-            hitEffect = despawnEffect = c.size >= 3 ? Fx.blastExplosion : c.size == 2 ? Fx.flakExplosion : Fx.hitBulletSmall;
-            shootEffect = c.size >= 2 ? Fx.shootBig : Fx.shootSmall;
-            smokeEffect = c.size >= 2 ? Fx.shootBigSmoke : Fx.shootSmallSmoke;
-        }};
+        b.lifetime = range / speed;
+        b.width = width;
+        b.height = height;
+        b.splashDamage = blast;
+        b.splashDamageRadius = blast > 0f ? Math.max(splashRadius, 12f) * radiusScale : 0f;
+        b.pierce = piercing;
+        b.pierceCap = piercing ? 2 : -1;
+        b.pierceBuilding = piercing;
+        b.trailLength = size * 3;
+        b.trailWidth = size * 0.8f;
+        b.backColor = b.trailColor = b.hitColor = Color.valueOf(tint);
+        b.hitEffect = b.despawnEffect = size >= 3 ? Fx.blastExplosion : size == 2 ? Fx.flakExplosion : Fx.hitBulletSmall;
+        b.shootEffect = size >= 2 ? Fx.shootBig : Fx.shootSmall;
+        b.smokeEffect = size >= 2 ? Fx.shootBigSmoke : Fx.shootSmallSmoke;
+        return b;
     }
 }

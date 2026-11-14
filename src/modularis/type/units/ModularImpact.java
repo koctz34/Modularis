@@ -42,6 +42,7 @@ public class ModularImpact{
     public static final float maxSpin = 4f;
     public static final float spinDamping = 0.16f;
     public static final float spinEpsilon = 0.01f;
+    public static final float spinGripHold = 0.2f;
 
     // ---- gun recoil ----
     public static final float recoilTransfer = 1f;
@@ -80,6 +81,33 @@ public class ModularImpact{
     public static final float ramContactMemory = 45f;
     public static final float ramSustainedShare = 0.05f;
     public static final float ramBlockCone = 75f;
+
+    // ---- hulls touching ----
+    public static final float pushSoftness = 1.25f;
+    public static final float maxPushStep = 3f;
+    public static final float contactRestitution = 0.1f;
+
+    public static float contactShare(float ownMass, float theirMass, boolean selfPinned, boolean otherPinned){
+        if(otherPinned) return 1f;
+        if(selfPinned) return 0f;
+        return theirMass / Math.max(ownMass + theirMass, 1f);
+    }
+
+    public static float contactStop(float closing){
+        return closing < 0f ? -closing * (1f + contactRestitution) : 0f;
+    }
+
+    public static final float contactNormalMemory = 20f;
+    public static final float flipClosing = 0.05f;
+
+    public static boolean flipNormal(float nx, float ny, float closing, boolean remembered, float rx, float ry, float awayX, float awayY){
+        if(remembered) return nx * rx + ny * ry < 0f;
+        return closing > flipClosing && nx * awayX + ny * awayY < 0f;
+    }
+
+    public static float contactStep(float depth, float share){
+        return Math.min(depth * share / pushSoftness, maxPushStep);
+    }
 
     public static float toughness(ModuleType type){
         return Math.max((type.health + type.armor * armorToughness) * type.shedResistance, 1f);

@@ -107,7 +107,7 @@ public class ModularPhysics{
             }
 
             s.powerProd += t.powerProduction;
-            s.powerUse += t.powerUse;
+            s.powerUse += pm.powerUse();
             s.cargoCapacity += t.cargoCapacity;
             s.buildSpeed += t.buildSpeed;
 

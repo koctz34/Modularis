@@ -13,6 +13,7 @@ import mindustry.graphics.MultiPacker.*;
 import mindustry.mod.*;
 import mindustry.mod.Mods.*;
 import modularis.content.*;
+import modularis.type.*;
 import modularis.type.units.*;
 import modularis.type.units.modules.*;
 import modularis.type.units.nav.*;
@@ -56,6 +57,8 @@ public class MdlMod extends Mod{
             CargoInteraction.installInput();
             TowInteraction.installInput();
             ActiveInteraction.installHud();
+            netClient.addPacketHandler(MapFlow.packet, MapFlow::received);
+            Events.run(Trigger.update, MapFlow::watch);
             netServer.addPacketHandler(CargoInteraction.packetName, CargoInteraction::handle);
             netServer.addPacketHandler(TowInteraction.packetName, TowInteraction::handle);
             netServer.addPacketHandler(ActiveInteraction.packetName, ActiveInteraction::handle);

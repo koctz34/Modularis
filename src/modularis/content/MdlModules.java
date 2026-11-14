@@ -1162,8 +1162,8 @@ public class MdlModules{
             w = 6; h = 6;
             weight = 16f;
             health = 1200f;
-            powerUse = 6f;
-            slotCost = 6;
+            powerUse = 10f;
+            slotCost = 10;
             radius = 12f;
             weightLimit = 130f;
             rotateSpeed = 2.6f;
@@ -1184,19 +1184,19 @@ public class MdlModules{
             localizedName = "Light Barrel"; weight = 0.4f; health = 30f;
         }});
         part(new CannonPart("cannon-barrel-m1x2", CannonPart.Kind.barrel, 2){{
-            localizedName = "Medium Barrel"; w = 2; weight = 1.6f; health = 90f;
+            localizedName = "Medium Barrel"; w = 2; weight = 1.6f; health = 90f; powerUse = 0.2f;
         }});
         part(new CannonPart("cannon-barrel-l1x3", CannonPart.Kind.barrel, 3){{
-            localizedName = "Heavy Barrel"; w = 3; weight = 5f; health = 250f;
+            localizedName = "Heavy Barrel"; w = 3; weight = 5f; health = 250f; powerUse = 0.6f;
         }});
         part(new CannonPart("cannon-breech-s1x1", CannonPart.Kind.breech, 1){{
             localizedName = "Light Breech"; weight = 1.2f; health = 60f;
         }});
         part(new CannonPart("cannon-breech-m2x2", CannonPart.Kind.breech, 2){{
-            localizedName = "Medium Breech"; w = 2; h = 2; weight = 5f; health = 200f;
+            localizedName = "Medium Breech"; w = 2; h = 2; weight = 5f; health = 200f; powerUse = 1f; hingeSlots = 1;
         }});
         part(new CannonPart("cannon-breech-l3x3", CannonPart.Kind.breech, 3){{
-            localizedName = "Heavy Breech"; w = 3; h = 3; weight = 16f; health = 600f;
+            localizedName = "Heavy Breech"; w = 3; h = 3; weight = 16f; health = 600f; powerUse = 4f; hingeSlots = 3;
         }});
         part(new CannonPart("cannon-plate1x1", CannonPart.Kind.armor, 0){{
             localizedName = "Mantlet Plate"; weight = 0.8f; health = 120f; armor = 0.5f;
@@ -1221,6 +1221,13 @@ public class MdlModules{
         }});
         part(new CannonPart("cannon-ammo-ap1x1", CannonPart.Kind.ammoAP, 0){{
             localizedName = "AP Rack"; weight = 0.6f; health = 30f;
+        }});
+        part(new CannonPart("cannon-ammo-heal1x1", CannonPart.Kind.ammoHeal, 0){{
+            localizedName = "Heal Rack"; weight = 0.6f; health = 30f;
+        }});
+        part(new CannonPart("reincarnatio3x3", CannonPart.Kind.focus, 0){{
+            localizedName = ""; description = "the light that was before every world, and will be after the last";
+            w = h = 3; weight = 30f; health = 900f; powerUse = 500f / 60f; unstable = true;
         }});
 
         // ---- Active ----

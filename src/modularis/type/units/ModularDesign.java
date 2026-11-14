@@ -67,7 +67,7 @@ public class ModularDesign{
         if(type == SlotType.none) return 0;
         int n = 0;
         for(PlacedModule m : modules){
-            if(m.type.slot == type) n += m.type.slotCost;
+            if(m.type.slot == type) n += m.slotCost();
         }
         return n;
     }
@@ -95,8 +95,8 @@ public class ModularDesign{
         for(PlacedModule o : modules){
             if(o.type.slot != type) continue;
 
-            boolean fits = used + o.type.slotCost <= cap;
-            if(fits) used += o.type.slotCost;
+            boolean fits = used + o.slotCost() <= cap;
+            if(fits) used += o.slotCost();
             if(o == m) return fits;
         }
         return false;
@@ -148,6 +148,43 @@ public class ModularDesign{
         for(PlacedModule m : other.modules) modules.add(m.copy());
         color.set(other.color);
         pivot = other.pivot;
+    }
+
+    public static ModularDesign legal(ModularDesign raw, int[] dropped){
+        ModularDesign out = new ModularDesign();
+        out.color.set(raw.color);
+        for(PlacedModule m : raw.modules){
+            if(MdlModules.cannonParts.contains(m.type) || out.atLimit(m.type) || overlapsAny(out, m)){
+                dropped[0]++;
+                continue;
+            }
+            PlacedModule placed = new PlacedModule(m.type, m.x, m.y);
+            placed.color = m.color == null ? null : m.color.cpy();
+            if(m.type instanceof ModulHinge hinge && m.cannon != null){
+                placed.cannon = new ModularDesign();
+                placed.cannon.color.set(m.cannon.color);
+                placed.cannon.pivot = m.cannon.pivot;
+                for(PlacedModule p : m.cannon.modules){
+                    if(!MdlModules.cannonParts.contains(p.type) || p.type instanceof CannonPart c && c.unstable && !WorldTally.tuned()
+                        || !CannonSpec.canPlace(placed.cannon, hinge, p.type, p.x, p.y)){
+                        dropped[0]++;
+                        continue;
+                    }
+                    PlacedModule part = new PlacedModule(p.type, p.x, p.y);
+                    part.color = p.color == null ? null : p.color.cpy();
+                    placed.cannon.modules.add(part);
+                }
+            }
+            out.modules.add(placed);
+        }
+        return out;
+    }
+
+    private static boolean overlapsAny(ModularDesign design, PlacedModule m){
+        for(PlacedModule o : design.modules){
+            if(o.overlaps(m.x, m.y, m.type.w, m.type.h)) return true;
+        }
+        return false;
     }
 
     public boolean isExposed(PlacedModule m){
@@ -221,7 +258,7 @@ public class ModularDesign{
     /** Net power = production - use. Negative means the machine is under-powered. */
     public float powerBalance(){
         float v = 0f;
-        for(PlacedModule m : modules) v += m.type.powerProduction - m.type.powerUse;
+        for(PlacedModule m : modules) v += m.type.powerProduction - m.powerUse();
         return v;
     }
 

@@ -48,12 +48,20 @@ public class ModularUnitEntity extends TankUnit{
 
     /** Terrain move increments, in world units. Must stay under the thinnest terrain collider part. */
     private static final float moveStep = 2f;
-    /** Same softening the engine's physics applies to unit pushes. */
-    private static final float pushSoftness = 1.25f;
     private static final float pushAllowance = 60f;
-    private static final float maxMachineReach = 120f;
+    /** Furthest any part of a hull sits from its centre. */
+    public static final float maxMachineReach = 120f;
     /** How close a hull counts as touching what it rams. */
     private static final float ramContactSlack = 2f;
+    private static final float maxRamImpulse = 1.2f;
+    private static final float turnSlide = 1f;
+
+    public final transient ModularPrediction prediction = new ModularPrediction();
+    private final transient IntMap<Vec2> contactNormals = new IntMap<>();
+    private final transient IntFloatMap contactSeen = new IntFloatMap();
+    /** Terrain stopped this hull during its last move, so it can't give way to a push. */
+    private transient boolean pinned;
+    private transient boolean wasLocal;
 
     public transient @Nullable ModularCollider collider;
     private transient @Nullable ModularCollider ramCollider;
@@ -137,7 +145,7 @@ public class ModularUnitEntity extends TankUnit{
     @Override
     public float speed(){
         float speed = super.speed();
-        return allowedTime > 0f ? Math.max(speed, allowedSpeed) : speed;
+        return allowedTime > 0f && net.server() && isPlayer() && !isLocal() ? Math.max(speed, allowedSpeed) : speed;
     }
 
     public void allowSpeed(float speed, float ticks){
@@ -147,6 +155,34 @@ public class ModularUnitEntity extends TankUnit{
 
     public static boolean owns(Unit unit){
         return unit.isPlayer() ? unit.isLocal() : !net.client();
+    }
+
+    public static boolean simulates(Unit unit){
+        return owns(unit) || unit instanceof ModularUnitEntity e && e.predicted();
+    }
+
+    public boolean predicted(){
+        return net.client() && !isLocal();
+    }
+
+    public static void nudge(Unit unit, float dvx, float dvy){
+        if(simulates(unit)) unit.vel.add(dvx, dvy);
+        if(unit instanceof ModularUnitEntity e){
+            if(e.predicted()) e.prediction.contact();
+            e.allowSpeed(e.baseSpeed() + Mathf.len(dvx, dvy) * shoveAllowance, speedGrace);
+        }
+    }
+
+    public static void nudgeImpulse(Unit unit, Vec2 impulse){
+        float mass = Math.max(unit.mass(), 1f);
+        float top = unit instanceof ModularUnitEntity e ? e.baseSpeed() : unit.speed();
+        float cap = Math.max(top, 0.2f) * maxRamImpulse;
+        float dvx = impulse.x / mass, dvy = impulse.y / mass, len = Mathf.len(dvx, dvy);
+        if(len > cap){
+            dvx *= cap / len;
+            dvy *= cap / len;
+        }
+        nudge(unit, dvx, dvy);
     }
 
     public static void shove(Unit unit, float dvx, float dvy){
@@ -380,6 +416,7 @@ public class ModularUnitEntity extends TankUnit{
 
     @Override
     public void update(){
+        pinned = false;
         if(design != null && type instanceof ModularUnitType mt){
             mt.applyMovementMode(this);
         }
@@ -460,6 +497,7 @@ public class ModularUnitEntity extends TankUnit{
             }
 
             if(!free && collider.overlapsTiles(x, y, rotation, solid)){
+                pinned = true;
                 noteCrash(horizontal ? vel.x : vel.y, amount, solid);
                 x = px;
                 y = py;
@@ -511,6 +549,14 @@ public class ModularUnitEntity extends TankUnit{
         if(solid == null) return;
 
         if(collider.overlapsTiles(x, y, rotation, solid) && !collider.overlapsTiles(x, y, turnAnchor, solid)){
+            for(int i = 0; i < 8; i++){
+                float dx = Angles.trnsx(i * 45f, turnSlide), dy = Angles.trnsy(i * 45f, turnSlide);
+                if(!collider.overlapsTiles(x + dx, y + dy, rotation, solid) && !collider.overlapsTiles(x + dx, y + dy, turnAnchor, solid)){
+                    x += dx;
+                    y += dy;
+                    return;
+                }
+            }
             rotation = turnAnchor;
             spin = 0f;
         }
@@ -551,7 +597,7 @@ public class ModularUnitEntity extends TankUnit{
 
         float target = vec.angle(), len = vec.len() * gear;
         float forward = vel.x * Mathf.cosDeg(rotation) + vel.y * Mathf.sinDeg(rotation);
-        TrackDrive.Mode mode = TrackDrive.decide(rotation, target, forward, speed(), reversing, isPlayer());
+        TrackDrive.Mode mode = TrackDrive.decide(rotation, target, forward, baseSpeed(), reversing, isPlayer());
         reversing = mode == TrackDrive.Mode.reverse;
 
         if(reversing){
@@ -590,7 +636,7 @@ public class ModularUnitEntity extends TankUnit{
     }
 
     private void updateUnitCollisions(){
-        if(collider == null || dead() || (net.client() && !isLocal())) return;
+        if(collider == null || dead() || !simulates(this) && !net.server()) return;
 
         collider.bounds(x, y, rotation, 1f, Tmp.r3);
         int layer = collisionLayer();
@@ -608,16 +654,41 @@ public class ModularUnitEntity extends TankUnit{
             }
             if(!hit) return;
 
-            float own = mass(), theirs = other.mass();
-            float share = theirs / Math.max(own + theirs, 1f);
-            float px = pushVec.x * share / pushSoftness, py = pushVec.y * share / pushSoftness;
-            if(owns(this)){
-                move(px, py);
+            float depth = pushVec.len();
+            if(depth < 0.0001f) return;
+            float nx = pushVec.x / depth, ny = pushVec.y / depth;
+            float closing = (vel.x - other.vel().x) * nx + (vel.y - other.vel().y) * ny;
+
+            Vec2 seen = contactNormals.get(other.id);
+            boolean remembered = seen != null && Time.time - contactSeen.get(other.id, -1000f) < ModularImpact.contactNormalMemory;
+            if(ModularImpact.flipNormal(nx, ny, closing, remembered, remembered ? seen.x : 0f, remembered ? seen.y : 0f, x - other.x, y - other.y)){
+                nx = -nx;
+                ny = -ny;
+                closing = -closing;
             }
-            allowSpeed(baseSpeed() + Mathf.len(px, py) * pushAllowance, speedGrace);
+            if(contactNormals.size > 32) contactNormals.clear();
+            if(seen == null) contactNormals.put(other.id, seen = new Vec2());
+            seen.set(nx, ny);
+            contactSeen.put(other.id, Time.time);
+
+            float share = ModularImpact.contactShare(mass(), other.mass(), pinned, machine && ((ModularUnitEntity)other).pinned);
+            float stop = ModularImpact.contactStop(closing);
+            float step = ModularImpact.contactStep(depth, share);
+            if(simulates(this)){
+                if(dashTime > 0f && closing < -ModularImpact.flipClosing){
+                    endDash();
+                    stop = ModularImpact.contactStop((vel.x - other.vel().x) * nx + (vel.y - other.vel().y) * ny);
+                }
+                move(nx * step, ny * step);
+                vel.add(nx * stop * share, ny * stop * share);
+                if(predicted() && (step > 0.01f || stop > 0.01f)) prediction.contact();
+            }
+            allowSpeed(baseSpeed() + step * pushAllowance, speedGrace);
 
             if(!machine && owns(other)){
-                other.move(-pushVec.x * (1f - share) / pushSoftness, -pushVec.y * (1f - share) / pushSoftness);
+                float theirStep = ModularImpact.contactStep(depth, 1f - share);
+                other.move(-nx * theirStep, -ny * theirStep);
+                other.vel().sub(nx * stop * (1f - share), ny * stop * (1f - share));
             }
         });
     }
@@ -636,7 +707,7 @@ public class ModularUnitEntity extends TankUnit{
             if(!machine.collider.pushFromCircle(machine.x, machine.y, machine.rotation, unit.x, unit.y, r, machine.pushVec)) return;
 
             float share = machine.mass() / Math.max(machine.mass() + unit.mass(), 1f);
-            unit.move(-machine.pushVec.x * share / pushSoftness, -machine.pushVec.y * share / pushSoftness);
+            unit.move(-machine.pushVec.x * share / ModularImpact.pushSoftness, -machine.pushVec.y * share / ModularImpact.pushSoftness);
         });
     }
 
@@ -666,13 +737,10 @@ public class ModularUnitEntity extends TankUnit{
 
         allowedTime = Math.max(allowedTime - Time.delta, 0f);
         if(dashTime > 0f){
-            if(owns(this)) vel().trns(dashAngle, dashSpeed);
+            if(simulates(this)) vel().trns(dashAngle, dashSpeed);
 
             dashTime -= Time.delta;
-            if(dashTime <= 0f && owns(this) && s != null && type != null){
-                //drop back to what the drivetrain can hold, or it would coast for ages
-                vel().limit(type.speed * Math.max(s.speedMultiplier(), 0.1f));
-            }
+            if(dashTime <= 0f) endDash();
         }
 
         if(!headless){
@@ -714,6 +782,12 @@ public class ModularUnitEntity extends TankUnit{
         if(net.client()) lastLocalUse = Time.time;
         mount.type.activate(this);
         return true;
+    }
+
+    private void endDash(){
+        dashTime = 0f;
+        ModularPhysics.Stats s = stats();
+        if(simulates(this) && s != null && type != null) vel().limit(type.speed * Math.max(s.speedMultiplier(), 0.1f));
     }
 
     public void startDash(ModulDash dash){
@@ -778,8 +852,13 @@ public class ModularUnitEntity extends TankUnit{
         updateCrash(s);
         updateLateralGrip(s);
 
+        if(movementMode == PropulsionMode.ground){
+            float hold = ModularImpact.spinGripHold * s.lateralGrip * Time.delta;
+            spin = Math.abs(spin) <= hold ? 0f : spin - Math.signum(spin) * hold;
+        }
+
         if(Math.abs(spin) > ModularImpact.spinEpsilon){
-            if(owns(this)) rotation += spin * Time.delta;
+            if(simulates(this)) rotation += spin * Time.delta;
             spin *= 1f - Math.min(s.spinDampRate() * Time.delta, 1f);
         }else{
             spin = 0f;
@@ -851,8 +930,9 @@ public class ModularUnitEntity extends TankUnit{
         //every tick, even when nothing can land: contact has to be noticed to count as ongoing
         if(ramContacts.size > 32) ramContacts.clear();
         float reach = collider == null ? hitSize() / 2f : collider.radius;
+        int layer = collisionLayer();
         Units.nearbyEnemies(team, x, y, reach, other -> {
-            if(other == this || other.dead()) return;
+            if(other == this || other.dead() || other.collisionLayer() != layer) return;
             boolean rammed = rammedBy(other);
             if(!rammed && collider != null && !touches(collider, other)) return;
 
@@ -899,8 +979,8 @@ public class ModularUnitEntity extends TankUnit{
             }
 
             Tmp.v3.set(Tmp.v2).scl(ModularImpact.momentumScale * s.weight * closing * share);
-            shoveImpulse(other, Tmp.v3);
-            shoveImpulse(this, Tmp.v3.scl(-0.5f));
+            nudgeImpulse(other, Tmp.v3);
+            nudgeImpulse(this, Tmp.v3.scl(-0.5f));
 
             MdlFX.ramSparks.at(hx, hy, Tmp.v2.angle());
             if(fresh){
@@ -1363,6 +1443,7 @@ public class ModularUnitEntity extends TankUnit{
 
     @Override
     public void destroy(){
+        WorldTally.wreck();
         if(design != null){
             ModularPhysics.Stats s = ModularPhysics.compute(design);
             if(s.isKamikaze()) explode(s);
@@ -1449,8 +1530,30 @@ public class ModularUnitEntity extends TankUnit{
     }
 
     @Override
+    public void interpolate(){
+        if(net.client() && !isLocal()){
+            prediction.step(this);
+        }else{
+            super.interpolate();
+        }
+    }
+
+    @Override
     public void readSync(Reads read){
+        float px = x, py = y, pr = rotation, pvx = vel.x, pvy = vel.y;
         super.readSync(read);
+        boolean local = isLocal();
+        if(net.client() && !local){
+            if(wasLocal) prediction.reset();
+            boolean had = prediction.has();
+            snapSync();
+            prediction.snapshot(x, y, rotation, vel.x, vel.y);
+            if(had){
+                x = px; y = py; rotation = pr;
+                vel.set(pvx, pvy);
+            }
+        }
+        wasLocal = local;
         boolean full = read.bool();
         String designString = full ? read.str() : null;
         String incomingCargo = read.str();

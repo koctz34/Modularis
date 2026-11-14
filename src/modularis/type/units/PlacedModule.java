@@ -32,6 +32,22 @@ public class PlacedModule{
         return out;
     }
 
+    public int slotCost(){
+        int n = type.slotCost;
+        if(paysForCannon()) for(PlacedModule p : cannon.modules) if(p.type instanceof CannonPart c) n += c.hingeSlots;
+        return n;
+    }
+
+    public float powerUse(){
+        float n = type.powerUse;
+        if(paysForCannon()) for(PlacedModule p : cannon.modules) n += p.type.powerUse;
+        return n;
+    }
+
+    private boolean paysForCannon(){
+        return cannon != null && !(type instanceof ModulHinge h && h.unlimited);
+    }
+
     public float weight(){
         return type.weight + (cannon == null ? 0f : cannon.totalWeight());
     }

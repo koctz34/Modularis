@@ -20,19 +20,31 @@ public class CannonSpec{
     public static final float cornerPivot = 0f;
 
     public final Seq<Line> lines = new Seq<>();
-    public float weight, health, rotateSpeed, pivot;
+    public float weight, health, rotateSpeed, pivot, powerUse;
+    public int slots;
     /** Extra range each sight gives, and the most sights can reach together. */
     public static final float sightRange = 0.2f, maxRangeScale = 1.8f;
 
-    public int autoloaders, stabilizers, motors, sights, he, ap, deadBarrels, dryBreeches;
+    public int autoloaders, stabilizers, motors, sights, he, ap, heal, deadBarrels, dryBreeches;
 
     public int ammo(){
-        return he > ap ? CannonCaliber.he : ap > he ? CannonCaliber.ap : CannonCaliber.standard;
+        int top = Math.max(he, Math.max(ap, heal));
+        if(top == 0) return CannonCaliber.standard;
+        int leaders = (he == top ? 1 : 0) + (ap == top ? 1 : 0) + (heal == top ? 1 : 0);
+        if(leaders > 1) return CannonCaliber.standard;
+        return he == top ? CannonCaliber.he : ap == top ? CannonCaliber.ap : CannonCaliber.heal;
     }
 
     public static CannonSpec compute(ModularDesign cannon, ModulHinge hinge){
         CannonSpec s = new CannonSpec();
         s.weight = cannon.totalWeight();
+        s.slots = hinge.slotCost;
+        s.powerUse = hinge.powerUse;
+        for(PlacedModule p : cannon.modules){
+            if(hinge.unlimited) break;
+            if(p.type instanceof CannonPart c) s.slots += c.hingeSlots;
+            s.powerUse += p.type.powerUse;
+        }
         s.health = cannon.totalHealth();
         s.pivot = cannon.pivot;
         float pivot = cannon.pivot;
@@ -49,6 +61,7 @@ public class CannonSpec{
                 case motor -> s.motors++;
                 case ammoHE -> s.he++;
                 case ammoAP -> s.ap++;
+                case ammoHeal -> s.heal++;
                 case sight -> s.sights++;
                 default -> {}
             }
@@ -143,10 +156,13 @@ public class CannonSpec{
                 .append(Strings.autoFixed(hinge.weightLimit, 0)).append("[]\n");
         }
         sb.append("Health: ").append(Strings.autoFixed(health, 0)).append('\n');
+        sb.append("Weapon slots: ").append(slots).append('\n');
+        sb.append("Power: ").append(Strings.autoFixed(powerUse * 60f, 1)).append("/s\n");
         sb.append("Pivot: ").append(pivot == cornerPivot ? "cell corner (centres 2-wide)" : "cell centre (centres 1- and 3-wide)").append('\n');
         sb.append("Traverse: ").append(Strings.autoFixed(rotateSpeed * 60f, 0)).append(" deg/s\n");
         int ammo = ammo();
-        sb.append("Ammo: ").append(ammo == CannonCaliber.he ? "[orange]HE[]" : ammo == CannonCaliber.ap ? "[sky]AP[]" : "standard").append('\n');
+        sb.append("Ammo: ").append(ammo == CannonCaliber.he ? "[orange]HE[]" : ammo == CannonCaliber.ap ? "[sky]AP[]"
+            : ammo == CannonCaliber.heal ? "[green]heal[]" : "standard").append('\n');
 
         IntIntMap counted = new IntIntMap();
         for(Line line : lines) counted.increment(line.group());
@@ -158,6 +174,8 @@ public class CannonSpec{
             sb.append(count).append("x ").append(CannonCaliber.get(line.caliber).title.toLowerCase())
                 .append(", ").append(line.length).append(" long: [scarlet]")
                 .append(Strings.autoFixed(damage(line), 0)).append("[] dmg, ")
+                .append(CannonCaliber.get(line.caliber).bullets[ammo] instanceof HealShellBulletType h
+                    ? "[green]" + Strings.autoFixed(damage(line) * h.healPerDamage, 0) + "[] heal, " : "")
                 .append(Strings.autoFixed(60f / reload(line), 2)).append("/s, +-")
                 .append(Strings.autoFixed(inaccuracy(line), 1)).append(" deg, ")
                 .append(Strings.autoFixed(range(line) / 8f, 0)).append(" tiles\n");

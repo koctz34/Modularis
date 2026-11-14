@@ -42,6 +42,12 @@ public class ICBM extends ArtilleryBulletType{
     }
 
     @Override
+    public void despawned(Bullet b){
+        super.despawned(b);
+        WorldTally.blast();
+    }
+
+    @Override
     public void update(Bullet b){
         super.update(b);
 
